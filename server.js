@@ -8,64 +8,9 @@ const PORT = 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SIMPLE CACHE
-// ─────────────────────────────────────────────────────────────────────────────
-
-const CACHE_TTL = 1000 * 60 * 60 * 6; // 6 hours
-const cache = new Map();
-
-function getCache(key) {
-  const item = cache.get(key);
-
-  if (!item) return null;
-
-  if (Date.now() > item.expiry) {
-    cache.delete(key);
-    return null;
-  }
-
-  return item.value;
-}
-
-function setCache(key, value, ttl = CACHE_TTL) {
-  cache.set(key, {
-    value,
-    expiry: Date.now() + ttl,
-  });
-}
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SAFE FETCH
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function safeFetch(url, options = {}, timeout = 10000) {
-  try {
-    const controller = new AbortController();
-
-    const timer = setTimeout(() => {
-      controller.abort();
-    }, timeout);
-
-    const res = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-
-    clearTimeout(timer);
-
-    return res;
-  } catch {
-    return null;
-  }
-}
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SPOTIFY AUTH
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Spotify auth
+// ─────────────────────────────────────────────────────────────
 
 let cachedToken = null;
 let tokenExpiry = 0;
@@ -81,44 +26,103 @@ async function getAccessToken() {
   params.append("client_id", process.env.SPOTIFY_CLIENT_ID);
   params.append("client_secret", process.env.SPOTIFY_CLIENT_SECRET);
 
-  const response = await safeFetch(
+  const response = await fetch(
     "https://accounts.spotify.com/api/token",
     {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Type":
+          "application/x-www-form-urlencoded",
       },
       body: params.toString(),
     }
   );
 
-  if (!response) {
+  const data = await response.json();
+
+  if (!response.ok) {
     throw new Error("Spotify auth failed");
   }
 
-  const data = await response.json();
-
   cachedToken = data.access_token;
-  tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+
+  tokenExpiry =
+    Date.now() + (data.expires_in - 60) * 1000;
 
   return cachedToken;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Safe Spotify fetch with retry + timeout + rate limit handling
+// ─────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LAST.FM
-// ─────────────────────────────────────────────────────────────────────────────
+async function spotifyFetch(
+  url,
+  token,
+  retries = 3
+) {
+  for (let i = 0; i < retries; i++) {
+    const controller = new AbortController();
+
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 8000);
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      // Spotify rate limit handling
+      if (response.status === 429) {
+        const retryAfter =
+          parseInt(
+            response.headers.get("Retry-After")
+          ) || 1;
+
+        console.log(
+          `Spotify rate limited. Waiting ${retryAfter}s`
+        );
+
+        await new Promise((r) =>
+          setTimeout(r, retryAfter * 1000)
+        );
+
+        continue;
+      }
+
+      return response;
+    } catch (err) {
+      clearTimeout(timeout);
+
+      console.log("Spotify fetch retry...");
+
+      if (i === retries - 1) {
+        throw err;
+      }
+
+      await new Promise((r) =>
+        setTimeout(r, 1000)
+      );
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Last.fm helpers
+// ─────────────────────────────────────────────────────────────
 
 const LASTFM_KEY = process.env.LASTFM_API_KEY;
-const LASTFM_BASE = "https://ws.audioscrobbler.com/2.0/";
+
+const LASTFM_BASE =
+  "https://ws.audioscrobbler.com/2.0/";
 
 async function lfm(params) {
-  const key = JSON.stringify(params);
-
-  const cached = getCache(key);
-
-  if (cached) return cached;
-
   const url =
     LASTFM_BASE +
     "?" +
@@ -128,25 +132,39 @@ async function lfm(params) {
       format: "json",
     });
 
-  const res = await safeFetch(url);
+  try {
+    const controller = new AbortController();
 
-  if (!res) return null;
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 8000);
 
-  const data = await res.json();
+    const res = await fetch(url, {
+      signal: controller.signal,
+    });
 
-  if (data.error) return null;
+    clearTimeout(timeout);
 
-  setCache(key, data);
+    const data = await res.json();
 
-  return data;
+    if (data.error) {
+      return null;
+    }
+
+    return data;
+  } catch {
+    return null;
+  }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Last.fm data
+// ─────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LAST.FM HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function getLastfmSimilarArtists(artistName, limit = 12) {
+async function getLastfmSimilarArtists(
+  artistName,
+  limit = 8
+) {
   const data = await lfm({
     method: "artist.getSimilar",
     artist: artistName,
@@ -154,19 +172,26 @@ async function getLastfmSimilarArtists(artistName, limit = 12) {
     autocorrect: 1,
   });
 
-  if (!data?.similarartists?.artist) return [];
+  if (!data?.similarartists?.artist) {
+    return [];
+  }
 
-  const artists = Array.isArray(data.similarartists.artist)
-    ? data.similarartists.artist
-    : [data.similarartists.artist];
+  const artists = data.similarartists.artist;
 
-  return artists.map((a) => ({
+  return (
+    Array.isArray(artists)
+      ? artists
+      : [artists]
+  ).map((a) => ({
     name: a.name,
     score: parseFloat(a.match) || 0,
   }));
 }
 
-async function getLastfmAlbumTags(artistName, albumName) {
+async function getLastfmAlbumTags(
+  artistName,
+  albumName
+) {
   const data = await lfm({
     method: "album.getTopTags",
     artist: artistName,
@@ -174,40 +199,57 @@ async function getLastfmAlbumTags(artistName, albumName) {
     autocorrect: 1,
   });
 
-  if (!data?.toptags?.tag) return new Set();
+  if (!data?.toptags?.tag) {
+    return new Set();
+  }
 
-  const tags = Array.isArray(data.toptags.tag)
-    ? data.toptags.tag
-    : [data.toptags.tag];
+  const tags = data.toptags.tag;
 
   return new Set(
-    tags
-      .slice(0, 8)
-      .map((t) => t.name.toLowerCase().trim())
+    (
+      Array.isArray(tags)
+        ? tags
+        : [tags]
+    )
+      .slice(0, 10)
+      .map((t) =>
+        t.name.toLowerCase().trim()
+      )
   );
 }
 
-async function getLastfmArtistTags(artistName) {
+async function getLastfmArtistTags(
+  artistName
+) {
   const data = await lfm({
     method: "artist.getTopTags",
     artist: artistName,
     autocorrect: 1,
   });
 
-  if (!data?.toptags?.tag) return new Set();
+  if (!data?.toptags?.tag) {
+    return new Set();
+  }
 
-  const tags = Array.isArray(data.toptags.tag)
-    ? data.toptags.tag
-    : [data.toptags.tag];
+  const tags = data.toptags.tag;
 
   return new Set(
-    tags
-      .slice(0, 8)
-      .map((t) => t.name.toLowerCase().trim())
+    (
+      Array.isArray(tags)
+        ? tags
+        : [tags]
+    )
+      .slice(0, 10)
+      .map((t) =>
+        t.name.toLowerCase().trim()
+      )
   );
 }
 
-async function getLastfmTopAlbums(artistName, limit = 2) {
+async function getLastfmTopAlbums(
+  artistName,
+  limit = 2
+) {
   const data = await lfm({
     method: "artist.getTopAlbums",
     artist: artistName,
@@ -215,67 +257,103 @@ async function getLastfmTopAlbums(artistName, limit = 2) {
     autocorrect: 1,
   });
 
-  if (!data?.topalbums?.album) return [];
+  if (!data?.topalbums?.album) {
+    return [];
+  }
 
-  const albums = Array.isArray(data.topalbums.album)
-    ? data.topalbums.album
-    : [data.topalbums.album];
+  const albums = data.topalbums.album;
 
-  return albums
-    .filter((a) => a.name && a.name !== "(null)")
+  return (
+    Array.isArray(albums)
+      ? albums
+      : [albums]
+  )
+    .filter(
+      (a) =>
+        a.name &&
+        a.name !== "(null)"
+    )
     .map((a) => a.name);
 }
 
+// ─────────────────────────────────────────────────────────────
+// Spotify helpers
+// ─────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SPOTIFY HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function spotifyFindAlbum(token, artistName, albumName) {
-  const cacheKey = `spotify:${artistName}:${albumName}`;
-
-  const cached = getCache(cacheKey);
-
-  if (cached) return cached;
-
+async function spotifyFindAlbum(
+  token,
+  artistName,
+  albumName
+) {
   const q = `artist:${artistName} album:${albumName}`;
 
-  const res = await safeFetch(
+  const res = await spotifyFetch(
     `https://api.spotify.com/v1/search?q=${encodeURIComponent(
       q
     )}&type=album&limit=1&market=US`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
+    token
   );
-
-  if (!res) return null;
 
   const data = await res.json();
 
-  const album =
-    res.ok && data.albums?.items?.length
-      ? data.albums.items[0]
-      : null;
+  if (
+    res.ok &&
+    data.albums?.items?.length
+  ) {
+    return data.albums.items[0];
+  }
 
-  setCache(cacheKey, album);
-
-  return album;
+  return null;
 }
+
+async function getAlbumsByArtist(
+  token,
+  artistName,
+  limit = 1
+) {
+  const res = await spotifyFetch(
+    `https://api.spotify.com/v1/search?q=artist:${encodeURIComponent(
+      artistName
+    )}&type=album&limit=${limit}&market=US`,
+    token
+  );
+
+  const data = await res.json();
+
+  if (
+    res.ok &&
+    data.albums?.items
+  ) {
+    return data.albums.items;
+  }
+
+  return [];
+}
+
+// ─────────────────────────────────────────────────────────────
+// Utils
+// ─────────────────────────────────────────────────────────────
 
 function formatAlbum(a) {
   return {
     id: a.id,
     name: a.name,
-    artist: a.artists.map((x) => x.name).join(", "),
-    artistId: a.artists[0]?.id ?? null,
-    year: a.release_date?.split("-")[0] ?? "?",
-    releaseDate: a.release_date ?? null,
-    image: a.images?.[0]?.url ?? null,
+    artist: a.artists
+      .map((x) => x.name)
+      .join(", "),
+    artistId:
+      a.artists[0]?.id ?? null,
+    year:
+      a.release_date?.split("-")[0] ??
+      "?",
+    releaseDate:
+      a.release_date ?? null,
+    image:
+      a.images?.[0]?.url ?? null,
     totalTracks: a.total_tracks,
-    spotifyUrl: a.external_urls?.spotify ?? null,
+    spotifyUrl:
+      a.external_urls?.spotify ??
+      null,
   };
 }
 
@@ -283,61 +361,104 @@ function tagOverlap(setA, setB) {
   let n = 0;
 
   for (const t of setA) {
-    if (setB.has(t)) n++;
+    if (setB.has(t)) {
+      n++;
+    }
   }
 
   return n;
 }
 
+async function batchedMap(
+  items,
+  fn,
+  batchSize = 2,
+  delayMs = 500
+) {
+  const results = [];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SEARCH
-// ─────────────────────────────────────────────────────────────────────────────
+  for (
+    let i = 0;
+    i < items.length;
+    i += batchSize
+  ) {
+    const batch = items.slice(
+      i,
+      i + batchSize
+    );
+
+    const batchResults =
+      await Promise.all(batch.map(fn));
+
+    results.push(...batchResults);
+
+    if (
+      i + batchSize <
+      items.length
+    ) {
+      await new Promise((r) =>
+        setTimeout(r, delayMs)
+      );
+    }
+  }
+
+  return results;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Search
+// ─────────────────────────────────────────────────────────────
 
 app.get("/api/search", async (req, res) => {
   const { q } = req.query;
 
   if (!q) {
-    return res.status(400).json({
-      error: "Missing query",
-    });
+    return res
+      .status(400)
+      .json({
+        error: "Missing query",
+      });
   }
 
   try {
-    const token = await getAccessToken();
+    const token =
+      await getAccessToken();
 
-    const response = await safeFetch(
-      `https://api.spotify.com/v1/search?q=${encodeURIComponent(
-        q
-      )}&type=album&limit=20&market=US`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+    const response =
+      await spotifyFetch(
+        `https://api.spotify.com/v1/search?q=${encodeURIComponent(
+          q
+        )}&type=album&limit=20&market=US`,
+        token
+      );
+
+    const data =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !data.albums
+    ) {
+      return res.json([]);
+    }
+
+    const unique = {};
+    data.albums.items.forEach(
+      (a) => {
+        unique[a.id] = a;
       }
     );
 
-    if (!response) {
-      throw new Error();
-    }
-
-    const data = await response.json();
-
-    const items = data.albums?.items || [];
-
-    const unique = {};
-
-    items.forEach((a) => {
-      unique[a.id] = a;
-    });
-
     res.json(
-      Object.values(unique)
-        .map(formatAlbum)
-        .slice(0, 20)
+      Object.values(unique).map(
+        formatAlbum
+      )
     );
   } catch (err) {
-    console.error(err);
+    console.error(
+      "Search error:",
+      err
+    );
 
     res.status(500).json({
       error: "Search failed",
@@ -345,186 +466,399 @@ app.get("/api/search", async (req, res) => {
   }
 });
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ALBUM
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Album page
+// ─────────────────────────────────────────────────────────────
 
 app.get("/api/album/:id", async (req, res) => {
   try {
-    const token = await getAccessToken();
+    const token =
+      await getAccessToken();
 
-    const response = await safeFetch(
-      `https://api.spotify.com/v1/albums/${req.params.id}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    const response =
+      await spotifyFetch(
+        `https://api.spotify.com/v1/albums/${req.params.id}`,
+        token
+      );
 
-    if (!response) {
+    const data =
+      await response.json();
+
+    if (!response.ok) {
       throw new Error();
     }
 
-    const data = await response.json();
+    const artistName =
+      data.artists[0]?.name ?? "";
 
-    const artistName = data.artists[0]?.name ?? "";
-    const albumName = data.name ?? "";
+    const albumName =
+      data.name ?? "";
 
-    const [albumTags, artistTags] = await Promise.all([
-      getLastfmAlbumTags(artistName, albumName),
-      getLastfmArtistTags(artistName),
+    const [
+      albumTags,
+      artistTags,
+    ] = await Promise.all([
+      getLastfmAlbumTags(
+        artistName,
+        albumName
+      ),
+      getLastfmArtistTags(
+        artistName
+      ),
     ]);
 
-    const merged = [
-      ...new Set([
-        ...albumTags,
-        ...artistTags,
-      ]),
-    ].slice(0, 8);
+    const junk = new Set([
+      "seen live",
+      "albums i own",
+      "favorites",
+      "love",
+      "awesome",
+      "good",
+      "great",
+      "owned",
+    ]);
+
+    const merged = [];
+    const seen = new Set();
+
+    for (const tag of [
+      ...albumTags,
+      ...artistTags,
+    ]) {
+      const t = tag
+        .toLowerCase()
+        .trim();
+
+      if (
+        seen.has(t) ||
+        t.length < 2 ||
+        /^\d+$/.test(t) ||
+        junk.has(t)
+      ) {
+        continue;
+      }
+
+      seen.add(t);
+      merged.push(tag);
+
+      if (merged.length >= 8) {
+        break;
+      }
+    }
 
     res.json({
       ...formatAlbum(data),
       tags: merged,
-      tracks: data.tracks.items.map((t) => ({
-        track_number: t.track_number,
-        name: t.name,
-        duration_ms: t.duration_ms,
-      })),
+      tracks:
+        data.tracks.items.map(
+          (t) => ({
+            track_number:
+              t.track_number,
+            name: t.name,
+            duration_ms:
+              t.duration_ms,
+          })
+        ),
     });
   } catch (err) {
-    console.error(err);
+    console.error(
+      "Album error:",
+      err
+    );
 
     res.status(500).json({
-      error: "Failed to load album",
+      error:
+        "Failed to load album",
     });
   }
 });
 
+// ─────────────────────────────────────────────────────────────
+// Similar albums
+// ─────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SIMILAR
-// ─────────────────────────────────────────────────────────────────────────────
+app.get(
+  "/api/similar/:albumId",
+  async (req, res) => {
+    try {
+      const token =
+        await getAccessToken();
 
-app.get("/api/similar/:albumId", async (req, res) => {
-  try {
-    const token = await getAccessToken();
+      const albumRes =
+        await spotifyFetch(
+          `https://api.spotify.com/v1/albums/${req.params.albumId}`,
+          token
+        );
 
-    const albumRes = await safeFetch(
-      `https://api.spotify.com/v1/albums/${req.params.albumId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      if (!albumRes.ok) {
+        return res
+          .status(500)
+          .json({
+            error:
+              "Could not fetch album",
+          });
       }
-    );
 
-    if (!albumRes) {
-      throw new Error();
-    }
+      const album =
+        await albumRes.json();
 
-    const album = await albumRes.json();
+      const sourceArtistName =
+        album.artists[0]?.name ??
+        "";
 
-    const sourceArtistName = album.artists[0]?.name ?? "";
-    const sourceArtistId = album.artists[0]?.id ?? null;
-    const sourceAlbumName = album.name ?? "";
+      const sourceArtistId =
+        album.artists[0]?.id ??
+        null;
 
-    const [sourceAlbumTags, sourceArtistTags, similarArtists] =
-      await Promise.all([
+      const sourceAlbumName =
+        album.name ?? "";
+
+      const sourceYear =
+        parseInt(
+          album.release_date?.split(
+            "-"
+          )[0]
+        ) || null;
+
+      if (!sourceArtistName) {
+        return res.json([]);
+      }
+
+      const [
+        sourceAlbumTags,
+        sourceArtistTags,
+        similarArtists,
+      ] = await Promise.all([
         getLastfmAlbumTags(
           sourceArtistName,
           sourceAlbumName
         ),
 
-        getLastfmArtistTags(sourceArtistName),
+        getLastfmArtistTags(
+          sourceArtistName
+        ),
 
-        getLastfmSimilarArtists(sourceArtistName, 12),
+        getLastfmSimilarArtists(
+          sourceArtistName,
+          8
+        ),
       ]);
 
-    const candidates = [];
-    const seenArtists = new Set();
-
-    for (const artist of similarArtists) {
-      if (seenArtists.has(artist.name)) {
-        continue;
+      if (
+        similarArtists.length ===
+        0
+      ) {
+        return res.json([]);
       }
 
-      seenArtists.add(artist.name);
+      const artistDetails =
+        await batchedMap(
+          similarArtists,
+          async ({
+            name,
+            score,
+          }) => {
+            const [
+              artistTags,
+              topAlbumNames,
+            ] = await Promise.all([
+              getLastfmArtistTags(
+                name
+              ),
 
-      const artistTags =
-        await getLastfmArtistTags(artist.name);
+              getLastfmTopAlbums(
+                name,
+                2
+              ),
+            ]);
 
-      const topAlbums =
-        await getLastfmTopAlbums(artist.name, 2);
-
-      const score =
-        artist.score * 10 +
-        tagOverlap(
-          sourceAlbumTags,
-          artistTags
-        ) *
-          4 +
-        tagOverlap(
-          sourceArtistTags,
-          artistTags
+            return {
+              name,
+              lastfmScore:
+                score,
+              artistTags,
+              topAlbumNames,
+            };
+          },
+          2,
+          500
         );
 
-      for (const albumName of topAlbums) {
-        const found = await spotifyFindAlbum(
-          token,
-          artist.name,
-          albumName
-        );
+      const scored =
+        artistDetails
+          .map((artist) => {
+            const albumTagScore =
+              tagOverlap(
+                sourceAlbumTags,
+                artist.artistTags
+              ) * 4;
 
-        if (!found) continue;
+            const artistTagScore =
+              tagOverlap(
+                sourceArtistTags,
+                artist.artistTags
+              );
 
-        if (!found.images?.length) continue;
+            const finalScore =
+              artist.lastfmScore *
+                10 +
+              albumTagScore +
+              artistTagScore;
 
-        if (found.artists[0]?.id === sourceArtistId) {
-          continue;
+            return {
+              ...artist,
+              finalScore,
+            };
+          })
+          .sort(
+            (a, b) =>
+              b.finalScore -
+              a.finalScore
+          );
+
+      const seen = new Set();
+
+      const candidates = [];
+
+      for (const {
+        name,
+        finalScore,
+        topAlbumNames,
+      } of scored) {
+        let foundAlbums = [];
+
+        if (
+          topAlbumNames.length > 0
+        ) {
+          const found =
+            await spotifyFindAlbum(
+              token,
+              name,
+              topAlbumNames[0]
+            );
+
+          if (found) {
+            foundAlbums.push(
+              found
+            );
+          }
         }
 
-        candidates.push({
-          album: found,
-          score,
-        });
+        if (
+          foundAlbums.length === 0
+        ) {
+          foundAlbums =
+            await getAlbumsByArtist(
+              token,
+              name,
+              1
+            );
+        }
+
+        for (const a of foundAlbums) {
+          if (!a) continue;
+
+          if (seen.has(a.id))
+            continue;
+
+          if (!a.images?.length)
+            continue;
+
+          if (
+            a.artists[0]?.id ===
+            sourceArtistId
+          ) {
+            continue;
+          }
+
+          seen.add(a.id);
+
+          candidates.push({
+            album: a,
+            finalScore,
+          });
+        }
+
+        if (
+          candidates.length >= 12
+        ) {
+          break;
+        }
+
+        await new Promise((r) =>
+          setTimeout(r, 150)
+        );
       }
+
+      candidates.sort(
+        (a, b) => {
+          if (
+            Math.abs(
+              b.finalScore -
+                a.finalScore
+            ) > 0.01
+          ) {
+            return (
+              b.finalScore -
+              a.finalScore
+            );
+          }
+
+          if (sourceYear) {
+            const yA =
+              parseInt(
+                a.album.release_date?.split(
+                  "-"
+                )[0]
+              ) || 0;
+
+            const yB =
+              parseInt(
+                b.album.release_date?.split(
+                  "-"
+                )[0]
+              ) || 0;
+
+            return (
+              Math.abs(
+                yA -
+                  sourceYear
+              ) -
+              Math.abs(
+                yB -
+                  sourceYear
+              )
+            );
+          }
+
+          return 0;
+        }
+      );
+
+      res.json(
+        candidates
+          .slice(0, 12)
+          .map((c) =>
+            formatAlbum(c.album)
+          )
+      );
+    } catch (err) {
+      console.error(
+        "Similar error:",
+        err
+      );
+
+      res.status(500).json({
+        error:
+          "Failed to load similar albums",
+      });
     }
-
-    candidates.sort((a, b) => b.score - a.score);
-
-    const unique = [];
-    const seen = new Set();
-
-    for (const c of candidates) {
-      if (seen.has(c.album.id)) {
-        continue;
-      }
-
-      seen.add(c.album.id);
-
-      unique.push(formatAlbum(c.album));
-
-      if (unique.length >= 20) {
-        break;
-      }
-    }
-
-    res.json(unique);
-  } catch (err) {
-    console.error(err);
-
-    res.status(500).json({
-      error: "Failed to load similar albums",
-    });
   }
-});
+);
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// START
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Start server
+// ─────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
   console.log(
