@@ -3,7 +3,7 @@ const path = require("path");
 require("dotenv").config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
@@ -341,6 +341,67 @@ app.get("/api/similar/:albumId", async (req, res) => {
   } catch (err) {
     console.error("Similar error:", err);
     res.status(500).json({ error: "Failed to load similar albums" });
+  }
+});
+
+// ─── Genre albums ─────────────────────────────────────────────────────────────
+// Uses Last.fm tag.getTopAlbums → Spotify for art. Returns up to 20 albums.
+app.get("/api/genre-albums", async (req, res) => {
+  const genre = req.query.genre?.trim();
+  if (!genre) return res.status(400).json({ error: "Missing genre" });
+  try {
+    const token = await getAccessToken();
+    const data = await lfm({ method: "tag.getTopAlbums", tag: genre, limit: 50, page: 1 });
+    if (!data?.albums?.album) return res.json([]);
+    const raw = Array.isArray(data.albums.album) ? data.albums.album : [data.albums.album];
+    const candidates = raw.filter(a => a.name && a.name !== "(null)" && a.artist?.name);
+
+    const results = [];
+    const seen = new Set();
+    for (const c of candidates) {
+      if (results.length >= 20) break;
+      const found = await spotifyFindAlbum(token, c.artist.name, c.name);
+      if (found && !seen.has(found.id)) {
+        seen.add(found.id);
+        results.push(formatAlbum(found));
+      }
+    }
+    res.json(results);
+  } catch (err) {
+    console.error("Genre albums error:", err);
+    res.status(500).json({ error: "Failed to load genre albums" });
+  }
+});
+
+// ─── Album of the day ─────────────────────────────────────────────────────────
+// Deterministic: uses today's date as a seed so everyone gets the same album.
+// Picks from Last.fm's global top albums list at a date-derived offset.
+app.get("/api/album-of-the-day", async (req, res) => {
+  try {
+    const token = await getAccessToken();
+    const today = new Date();
+    // Seed: days since epoch — changes every day, same for everyone
+    const seed = Math.floor(today.getTime() / 86400000);
+    const page = (seed % 10) + 1;
+    const offset = seed % 50;
+
+    const data = await lfm({ method: "chart.getTopArtists", limit: 50, page });
+    if (!data?.artists?.artist) throw new Error();
+    const artists = Array.isArray(data.artists.artist) ? data.artists.artist : [data.artists.artist];
+
+    // Deterministic pick from the list
+    const artist = artists[offset % artists.length];
+    const topAlbums = await getLastfmTopAlbums(artist.name, 10);
+    if (!topAlbums.length) throw new Error();
+
+    const albumName = topAlbums[seed % topAlbums.length];
+    const found = await spotifyFindAlbum(token, artist.name, albumName);
+    if (!found) throw new Error();
+
+    res.json({ ...formatAlbum(found), date: today.toISOString().split("T")[0] });
+  } catch (err) {
+    console.error("Album of the day error:", err);
+    res.status(500).json({ error: "Failed to load album of the day" });
   }
 });
 

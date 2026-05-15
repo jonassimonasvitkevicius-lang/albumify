@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="no">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
   <style>
+    /* ── Accessibility theme vars (overridden by settings) ── */
     :root {
       --bg:        #0a0a0a;
       --surface:   #111111;
@@ -16,180 +17,141 @@
       --muted:     #555555;
       --text:      #e0e0e0;
       --text-dim:  #888888;
+      --font-scale: 1;
+      --radius: 2px;
+    }
+    /* High contrast mode */
+    body.hc {
+      --bg: #000000; --surface: #0d0d0d; --border: #444444;
+      --text: #ffffff; --text-dim: #cccccc; --muted: #888888;
+      --green: #00ff66; --green-dim: #00aa44;
+    }
+    /* Large text mode — scales all rem-based sizes */
+    body.large-text { --font-scale: 1.25; font-size: calc(16px * var(--font-scale)); }
+    /* Reduced motion */
+    body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; font-weight: 300; min-height: 100vh; }
 
-    /* ── Header ── */
-    header {
-      border-bottom: 1px solid var(--border);
-      padding: 18px 0;
-      position: sticky; top: 0; z-index: 100;
-      background: rgba(10,10,10,0.96);
-      backdrop-filter: blur(10px);
+    /* skip-to-main link for keyboard/screen reader users */
+    .skip-link {
+      position: absolute; top: -99px; left: 8px; z-index: 9999;
+      background: var(--green); color: #000; padding: 8px 14px;
+      font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;
+      border-radius: var(--radius); text-decoration: none;
     }
-    header .inner { max-width: 1400px; margin: 0 auto; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; }
-    .logo { font-family: 'IBM Plex Mono', monospace; font-size: 1rem; font-weight: 500; letter-spacing: 0.05em; color: var(--green); cursor: pointer; }
-    .nav-links { display: flex; gap: 28px; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; letter-spacing: 0.08em; color: var(--muted); align-items: center; }
-    .nav-links span { cursor: pointer; transition: color 0.15s; }
-    .nav-links span:hover { color: var(--text); }
-    .nav-links span.active { color: var(--green); }
+    .skip-link:focus { top: 8px; }
+
+    /* ── Header ── */
+    header { border-bottom: 1px solid var(--border); padding: 18px 0; position: sticky; top: 0; z-index: 100; background: rgba(10,10,10,0.96); backdrop-filter: blur(10px); }
+    header .inner { max-width: 1400px; margin: 0 auto; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .logo { font-family: 'IBM Plex Mono', monospace; font-size: 1rem; font-weight: 500; letter-spacing: 0.05em; color: var(--green); cursor: pointer; flex-shrink: 0; }
+    nav { display: flex; gap: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; letter-spacing: 0.06em; align-items: center; flex-wrap: wrap; }
+    nav button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px 10px; border-radius: var(--radius); transition: color 0.15s, background 0.15s; font-family: inherit; font-size: inherit; letter-spacing: inherit; }
+    nav button:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+    nav button.active { color: var(--green); }
+    nav button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+    /* ── Search bar in header ── */
+    .header-search { flex: 1; max-width: 480px; display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: border-color 0.2s; }
+    .header-search:focus-within { border-color: var(--green); }
+    .header-search input { flex: 1; background: var(--surface); border: none; padding: 8px 14px; color: var(--text); font-family: 'IBM Plex Sans', sans-serif; font-size: 0.85rem; outline: none; min-width: 0; }
+    .header-search input::placeholder { color: var(--muted); }
+    .header-search button { background: var(--green); color: #000; border: none; padding: 8px 14px; font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; font-weight: 500; letter-spacing: 0.08em; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+    .header-search button:hover { background: #1ed760; }
+    .header-search button:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
 
     /* ── Pages ── */
     .page { display: none; }
     .page.active { display: block; }
 
-    /* ═══════════════════════════════════════════
-       HOME — full-width grid, no side padding waste
-    ═══════════════════════════════════════════ */
+    /* ── HOME ── */
     .home-inner { max-width: 1400px; margin: 0 auto; padding: 36px 28px 80px; }
+    .home-header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 20px; }
+    .home-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+    .home-source { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: #2d2d2d; }
 
-    .home-header {
-      display: flex; align-items: baseline; gap: 14px; margin-bottom: 20px;
-    }
-    .home-title {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted);
-    }
-    .home-source {
-      font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: #2d2d2d;
-    }
-
-    /* Big square grid — 5 columns on wide, fewer on smaller */
-    .album-grid {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 14px;
-    }
+    .album-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
     @media (max-width: 1200px) { .album-grid { grid-template-columns: repeat(4, 1fr); } }
     @media (max-width: 900px)  { .album-grid { grid-template-columns: repeat(3, 1fr); } }
     @media (max-width: 580px)  { .album-grid { grid-template-columns: repeat(2, 1fr); gap: 9px; } }
 
-    .album-card {
-      cursor: pointer;
-      position: relative;
-      background: var(--surface);
-      overflow: hidden;
-      transition: transform 0.2s ease;
-    }
+    .album-card { cursor: pointer; position: relative; background: var(--surface); overflow: hidden; transition: transform 0.2s ease; border-radius: var(--radius); }
     .album-card:hover { transform: scale(1.025); z-index: 2; }
-
-    /* Full-bleed square art */
-    .card-art-wrap {
-      position: relative; width: 100%; aspect-ratio: 1; overflow: hidden;
-    }
-    .card-art-wrap img {
-      width: 100%; height: 100%; object-fit: cover; display: block;
-      transition: transform 0.35s ease;
-    }
+    .album-card:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; transform: scale(1.025); z-index: 2; }
+    .card-art-wrap { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; }
+    .card-art-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.35s ease; }
     .album-card:hover .card-art-wrap img { transform: scale(1.06); }
-    .card-art-placeholder {
-      width: 100%; aspect-ratio: 1; background: var(--border);
-      display: flex; align-items: center; justify-content: center;
-      color: var(--muted); font-size: 3rem;
-    }
-
-    /* Gradient overlay — always present at low opacity, stronger on hover */
-    .card-overlay {
-      position: absolute; inset: 0;
-      background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.15) 45%, transparent 100%);
-      opacity: 0.5; transition: opacity 0.25s;
-      pointer-events: none;
-    }
-    .album-card:hover .card-overlay { opacity: 1; }
-
-    /* Save button — hidden until hover */
-    .card-save {
-      position: absolute; top: 9px; right: 9px;
-      background: rgba(0,0,0,0.78); border: 1px solid rgba(255,255,255,0.1);
-      color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem;
-      padding: 4px 8px; cursor: pointer; border-radius: 2px; white-space: nowrap;
-      opacity: 0; transition: opacity 0.18s, color 0.15s, border-color 0.15s;
-    }
-    .album-card:hover .card-save { opacity: 1; }
-    .card-save:hover { color: var(--green); border-color: var(--green-dim); }
+    .card-art-placeholder { width: 100%; aspect-ratio: 1; background: var(--border); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 3rem; }
+    .card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.15) 45%, transparent 100%); opacity: 0.5; transition: opacity 0.25s; pointer-events: none; }
+    .album-card:hover .card-overlay, .album-card:focus-visible .card-overlay { opacity: 1; }
+    .card-save { position: absolute; top: 9px; right: 9px; background: rgba(0,0,0,0.78); border: 1px solid rgba(255,255,255,0.1); color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; padding: 4px 8px; cursor: pointer; border-radius: var(--radius); white-space: nowrap; opacity: 0; transition: opacity 0.18s, color 0.15s, border-color 0.15s; }
+    .album-card:hover .card-save, .album-card:focus-within .card-save { opacity: 1; }
+    .card-save:hover, .card-save:focus-visible { color: var(--green); border-color: var(--green-dim); }
+    .card-save:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; opacity: 1; }
     .card-save.saved { opacity: 1; color: var(--green); border-color: var(--green-dim); background: rgba(0,0,0,0.88); }
-
-    /* Text info below art */
     .card-info { padding: 10px 11px 13px; }
-    .card-name {
-      font-size: 0.85rem; font-weight: 500; color: var(--text);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px;
-    }
-    .card-artist {
-      font-size: 0.72rem; color: var(--text-dim);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px;
-    }
+    .card-name { font-size: 0.85rem; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+    .card-artist { font-size: 0.72rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
     .card-year { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; color: var(--muted); }
 
-    /* Skeleton loading */
+    /* skeletons */
     .skeleton { background: linear-gradient(90deg, var(--surface) 25%, #181818 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
     @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
     .skeleton-art { width: 100%; aspect-ratio: 1; }
     .skeleton-line { height: 11px; margin: 10px 11px 5px; border-radius: 2px; }
     .skeleton-line-sm { height: 9px; margin: 0 11px 13px; width: 55%; border-radius: 2px; }
 
-    /* ═══════════════════════════════════════════
-       SEARCH PAGE
-    ═══════════════════════════════════════════ */
-    .search-inner { max-width: 900px; margin: 0 auto; padding: 40px 28px; }
-    .search-row { display: flex; margin-bottom: 32px; border: 1px solid var(--border); border-radius: 2px; overflow: hidden; transition: border-color 0.2s; }
-    .search-row:focus-within { border-color: var(--green-dim); }
-    .search-input { flex: 1; background: var(--surface); border: none; padding: 12px 16px; color: var(--text); font-family: 'IBM Plex Sans', sans-serif; font-size: 0.9rem; font-weight: 300; outline: none; }
-    .search-input::placeholder { color: var(--muted); }
-    .search-btn { background: var(--green); color: #000; border: none; padding: 12px 20px; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.1em; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
-    .search-btn:hover { background: #1ed760; }
+    /* ── ALBUM OF THE DAY ── */
+    .aotd-inner { max-width: 900px; margin: 0 auto; padding: 44px 28px 80px; }
+    .aotd-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+    .aotd-date { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: #333; margin-bottom: 28px; }
+    .aotd-card { display: grid; grid-template-columns: 220px 1fr; gap: 32px; align-items: center; background: var(--surface); border: 1px solid var(--border); padding: 28px; border-radius: var(--radius); cursor: pointer; transition: border-color 0.15s; }
+    .aotd-card:hover { border-color: #333; }
+    .aotd-card:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+    .aotd-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; border-radius: var(--radius); }
+    .aotd-placeholder { width: 100%; aspect-ratio: 1; background: var(--border); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 4rem; }
+    .aotd-name { font-size: 1.6rem; font-weight: 500; line-height: 1.2; margin-bottom: 8px; }
+    .aotd-artist { font-size: 1rem; color: var(--green); margin-bottom: 6px; }
+    .aotd-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted); margin-bottom: 20px; }
+    .aotd-desc { font-size: 0.82rem; color: var(--text-dim); line-height: 1.7; margin-bottom: 20px; }
+    @media (max-width: 620px) { .aotd-card { grid-template-columns: 1fr; } }
 
-    /* ═══════════════════════════════════════════
-       DISCOVER PAGE
-    ═══════════════════════════════════════════ */
+    /* ── GENRES PAGE ── */
+    .genres-inner { max-width: 1400px; margin: 0 auto; padding: 36px 28px 80px; }
+    .genre-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 32px; }
+    .genre-pill { background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; letter-spacing: 0.04em; padding: 8px 16px; cursor: pointer; border-radius: 999px; transition: all 0.15s; }
+    .genre-pill:hover { border-color: #444; color: var(--text); }
+    .genre-pill.active { border-color: var(--green); color: var(--green); background: rgba(29,185,84,0.08); }
+    .genre-pill:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+    .genres-header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 20px; }
+    .genres-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+
+    /* ── DISCOVER ── */
     .discover-inner { max-width: 680px; margin: 0 auto; padding: 44px 28px 80px; }
-    .discover-heading {
-      font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem;
-      letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
-    }
+    .discover-heading { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
     .discover-desc { font-size: 0.82rem; color: var(--text-dim); margin-bottom: 30px; padding-bottom: 22px; border-bottom: 1px solid var(--border); line-height: 1.6; }
-
     .genre-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
-    .genre-grid {
-      display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; margin-bottom: 22px;
-    }
+    .genre-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; margin-bottom: 22px; }
     @media (max-width: 520px) { .genre-grid { grid-template-columns: repeat(3, 1fr); } }
-    .genre-btn {
-      background: var(--surface); border: 1px solid var(--border);
-      color: var(--text-dim); font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.65rem; letter-spacing: 0.03em;
-      padding: 9px 4px; cursor: pointer; border-radius: 2px; text-align: center;
-      transition: all 0.15s;
-    }
+    .genre-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; padding: 9px 4px; cursor: pointer; border-radius: var(--radius); text-align: center; transition: all 0.15s; }
     .genre-btn:hover { border-color: #333; color: var(--text); }
     .genre-btn.selected { border-color: var(--green); color: var(--green); background: rgba(29,185,84,0.07); }
-
+    .genre-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
     .discover-actions { display: flex; gap: 10px; margin-bottom: 32px; }
-    .discover-go-btn {
-      flex: 1; background: var(--green); color: #000; border: none;
-      padding: 13px; font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.72rem; font-weight: 500; letter-spacing: 0.1em;
-      cursor: pointer; border-radius: 2px; transition: background 0.15s;
-    }
+    .discover-go-btn { flex: 1; background: var(--green); color: #000; border: none; padding: 13px; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.1em; cursor: pointer; border-radius: var(--radius); transition: background 0.15s; }
     .discover-go-btn:hover { background: #1ed760; }
-    .discover-go-btn:disabled { opacity: 0.45; cursor: default; background: var(--green); }
-    .discover-clear-btn {
-      background: none; border: 1px solid var(--border); color: var(--muted);
-      font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem;
-      padding: 13px 18px; cursor: pointer; border-radius: 2px; transition: all 0.15s;
-    }
+    .discover-go-btn:disabled { opacity: 0.45; cursor: default; }
+    .discover-go-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+    .discover-clear-btn { background: none; border: 1px solid var(--border); color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; padding: 13px 18px; cursor: pointer; border-radius: var(--radius); transition: all 0.15s; }
     .discover-clear-btn:hover { border-color: #444; color: var(--text); }
-
-    /* Discover result card */
-    .discover-result-card {
-      display: grid; grid-template-columns: 148px 1fr;
-      gap: 22px; align-items: center;
-      background: var(--surface); border: 1px solid var(--border);
-      padding: 18px; cursor: pointer; transition: border-color 0.15s; border-radius: 2px;
-    }
+    .discover-result-card { display: grid; grid-template-columns: 148px 1fr; gap: 22px; align-items: center; background: var(--surface); border: 1px solid var(--border); padding: 18px; cursor: pointer; transition: border-color 0.15s; border-radius: var(--radius); }
     .discover-result-card:hover { border-color: #333; }
+    .discover-result-card:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
     .discover-result-card img { width: 148px; height: 148px; object-fit: cover; display: block; }
     .d-placeholder { width: 148px; height: 148px; background: var(--border); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 2.5rem; }
     .r-name { font-size: 1.1rem; font-weight: 500; margin-bottom: 6px; line-height: 1.3; }
@@ -197,15 +159,36 @@
     .r-sub span { color: var(--green); }
     .discover-result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-    /* ═══════════════════════════════════════════
-       SHARED: section headers, album rows, detail
-    ═══════════════════════════════════════════ */
+    /* ── SETTINGS ── */
+    .settings-inner { max-width: 600px; margin: 0 auto; padding: 44px 28px 80px; }
+    .settings-heading { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+    .settings-desc { font-size: 0.82rem; color: var(--text-dim); margin-bottom: 32px; padding-bottom: 22px; border-bottom: 1px solid var(--border); line-height: 1.6; }
+    .setting-group { margin-bottom: 32px; }
+    .setting-group-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+    .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--border); gap: 20px; }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-label { font-size: 0.9rem; color: var(--text); }
+    .setting-label small { display: block; font-size: 0.75rem; color: var(--text-dim); margin-top: 3px; line-height: 1.4; }
+    /* Toggle switch */
+    .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track { position: absolute; inset: 0; background: var(--border); border-radius: 999px; cursor: pointer; transition: background 0.2s; border: 1px solid #333; }
+    .toggle input:checked + .toggle-track { background: var(--green); border-color: var(--green); }
+    .toggle-thumb { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: transform 0.2s; pointer-events: none; }
+    .toggle input:checked ~ .toggle-thumb { transform: translateX(20px); }
+    .toggle input:focus-visible + .toggle-track { outline: 2px solid var(--green); outline-offset: 2px; }
+    /* Font size slider */
+    .font-slider { width: 140px; accent-color: var(--green); cursor: pointer; }
+    .font-slider:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
+
+    /* ── SHARED ── */
     .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
     .section-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); }
     .section-count { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; color: var(--muted); }
     .album-list { margin-bottom: 48px; }
     .album-row { display: grid; grid-template-columns: 24px 48px 1fr auto; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
     .album-row:hover { background: var(--surface); margin: 0 -12px; padding: 10px 12px; }
+    .album-row:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; background: var(--surface); }
     .album-index { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; color: var(--muted); text-align: right; }
     .album-thumb { width: 48px; height: 48px; object-fit: cover; display: block; background: var(--border); }
     .album-thumb-placeholder { width: 48px; height: 48px; background: var(--border); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1.2rem; }
@@ -214,446 +197,668 @@
     .album-sub { font-size: 0.78rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .album-sub span { color: var(--green); font-size: 0.72rem; }
     .album-actions { display: flex; align-items: center; gap: 6px; }
-    .action-btn { background: none; border: 1px solid var(--border); color: var(--muted); font-size: 0.72rem; font-family: 'IBM Plex Mono', monospace; padding: 4px 10px; cursor: pointer; border-radius: 2px; transition: all 0.15s; white-space: nowrap; }
+    .action-btn { background: none; border: 1px solid var(--border); color: var(--muted); font-size: 0.72rem; font-family: 'IBM Plex Mono', monospace; padding: 4px 10px; cursor: pointer; border-radius: var(--radius); transition: all 0.15s; white-space: nowrap; }
     .action-btn:hover { border-color: var(--green-dim); color: var(--green); }
     .action-btn.saved { border-color: var(--green-dim); color: var(--green); background: rgba(29,185,84,0.06); }
+    .action-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 
-    /* ── Detail ── */
+    /* ── DETAIL ── */
     .detail-inner { max-width: 900px; margin: 0 auto; padding: 40px 28px; }
-    .back-btn { display: inline-flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted); cursor: pointer; margin-bottom: 28px; transition: color 0.15s; background: none; border: none; padding: 0; }
+    .back-btn { display: inline-flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted); cursor: pointer; margin-bottom: 28px; transition: color 0.15s; background: none; border: none; padding: 4px 0; }
     .back-btn:hover { color: var(--text); }
+    .back-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; color: var(--text); }
     .detail-header { display: flex; gap: 24px; margin-bottom: 36px; align-items: flex-start; }
-    .detail-art { width: 160px; height: 160px; object-fit: cover; flex-shrink: 0; }
+    .detail-art { width: 160px; height: 160px; object-fit: cover; flex-shrink: 0; border-radius: var(--radius); }
     .detail-art-placeholder { width: 160px; height: 160px; background: var(--border); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 3rem; flex-shrink: 0; }
     .detail-meta { flex: 1; min-width: 0; padding-top: 4px; }
     .detail-name { font-size: 1.4rem; font-weight: 500; line-height: 1.2; margin-bottom: 6px; }
     .detail-artist { font-size: 0.9rem; color: var(--green); margin-bottom: 4px; }
-    .detail-info { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted); margin-bottom: 20px; }
-    .detail-save-btn { background: none; border: 1px solid var(--border); color: var(--muted); font-size: 0.72rem; font-family: 'IBM Plex Mono', monospace; padding: 7px 14px; cursor: pointer; border-radius: 2px; transition: all 0.15s; }
+    .detail-info { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted); margin-bottom: 14px; }
+    .detail-save-btn { background: none; border: 1px solid var(--border); color: var(--muted); font-size: 0.72rem; font-family: 'IBM Plex Mono', monospace; padding: 7px 14px; cursor: pointer; border-radius: var(--radius); transition: all 0.15s; margin-bottom: 14px; display: inline-block; }
     .detail-save-btn:hover { border-color: var(--green-dim); color: var(--green); }
     .detail-save-btn.saved { border-color: var(--green-dim); color: var(--green); background: rgba(29,185,84,0.06); }
-
-    /* Genre tags */
+    .detail-save-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
     .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
-    .tag {
-      font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem;
-      letter-spacing: 0.05em; color: var(--text-dim);
-      border: 1px solid var(--border); padding: 3px 9px; border-radius: 2px;
-      cursor: default; transition: color 0.15s, border-color 0.15s;
-    }
-    .tag:hover { color: var(--green); border-color: var(--green-dim); }
+    .tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--text-dim); border: 1px solid var(--border); padding: 3px 9px; border-radius: var(--radius); }
     .track-row { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
     .track-row:last-child { border-bottom: none; }
     .track-num { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; color: var(--muted); text-align: right; }
     .track-name { color: var(--text); }
     .track-dur { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted); }
     .similar-section { margin-top: 48px; margin-bottom: 48px; }
-
-    /* ── My List ── */
     .list-inner { max-width: 900px; margin: 0 auto; padding: 40px 28px; }
-
-    /* ── Misc ── */
     .status { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--muted); padding: 40px 0; text-align: center; }
     .status.error { color: #e05555; }
     .empty { padding: 40px 0; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--muted); text-align: center; }
+
+    /* ── live region for screen readers ── */
+    #sr-live { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
   </style>
 </head>
 <body>
 
-<header>
+<!-- Screen reader live region -->
+<div id="sr-live" aria-live="polite" aria-atomic="true"></div>
+
+<!-- Skip to main content (keyboard/screen reader) -->
+<a href="#main" class="skip-link">Skip to main content</a>
+
+<header role="banner">
   <div class="inner">
-    <div class="logo" onclick="showPage('home')">albumify</div>
-    <div class="nav-links">
-      <span class="active" id="nav-home"     onclick="showPage('home')">popular</span>
-      <span               id="nav-discover" onclick="showPage('discover')">discover</span>
-      <span               id="nav-search"   onclick="showPage('search')">search</span>
-      <span               id="nav-list"     onclick="showPage('list')">my list <span id="list-badge"></span></span>
+    <div class="logo" onclick="showPage('home')" role="link" tabindex="0" aria-label="Albumify – go to home" onkeydown="if(event.key==='Enter')showPage('home')">albumify</div>
+
+    <!-- Search in header -->
+    <div class="header-search" role="search">
+      <label for="header-search-input" class="sr-only" style="position:absolute;left:-9999px">Search for an album or artist</label>
+      <input id="header-search-input" type="search" placeholder="Search albums or artists…" autocomplete="off" aria-label="Search for an album or artist" />
+      <button onclick="doSearch()" aria-label="Search">SEARCH</button>
     </div>
+
+    <nav aria-label="Main navigation">
+      <button id="nav-home"     onclick="showPage('home')"    class="active" aria-current="page">popular</button>
+      <button id="nav-aotd"    onclick="showPage('aotd')"              >album of the day</button>
+      <button id="nav-genres"  onclick="showPage('genres')"            >genres</button>
+      <button id="nav-discover" onclick="showPage('discover')"         >discover</button>
+      <button id="nav-list"    onclick="showPage('list')"               >my list <span id="list-badge" aria-live="polite"></span></button>
+      <button id="nav-settings" onclick="showPage('settings')"         >settings</button>
+    </nav>
   </div>
 </header>
 
-<!-- ══ HOME ══ -->
-<div class="page active" id="page-home">
+<main id="main">
+
+<!-- HOME -->
+<div class="page active" id="page-home" role="region" aria-label="Popular right now">
   <div class="home-inner">
     <div class="home-header">
       <span class="home-title">Popular Right Now</span>
-      <span class="home-source">via last.fm global chart</span>
+      <span class="home-source" aria-hidden="true">via last.fm global chart</span>
     </div>
-    <div class="album-grid" id="popular-grid">
-      <!-- skeleton placeholders while loading -->
-      <div class="skeleton-card"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
-      <div class="skeleton-card"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
-      <div class="skeleton-card"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
-      <div class="skeleton-card"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
-      <div class="skeleton-card"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
-      <div class="skeleton-card"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
-      <div class="skeleton-card"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
-      <div class="skeleton-card"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
-      <div class="skeleton-card"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
-      <div class="skeleton-card"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
+    <div class="album-grid" id="popular-grid" aria-label="Popular albums">
+      <div aria-hidden="true"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
+      <div aria-hidden="true"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
+      <div aria-hidden="true"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
+      <div aria-hidden="true"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
+      <div aria-hidden="true"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
+      <div aria-hidden="true"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
+      <div aria-hidden="true"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
+      <div aria-hidden="true"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
+      <div aria-hidden="true"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
+      <div aria-hidden="true"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>
     </div>
   </div>
 </div>
 
-<!-- ══ DISCOVER ══ -->
-<div class="page" id="page-discover">
+<!-- ALBUM OF THE DAY -->
+<div class="page" id="page-aotd" role="region" aria-label="Album of the day">
+  <div class="aotd-inner">
+    <div class="aotd-label">Album of the Day</div>
+    <div class="aotd-date" id="aotd-date"></div>
+    <div id="aotd-content"><div class="status">Loading…</div></div>
+  </div>
+</div>
+
+<!-- GENRES -->
+<div class="page" id="page-genres" role="region" aria-label="Browse by genre">
+  <div class="genres-inner">
+    <div class="genre-picker" id="genre-picker" role="group" aria-label="Select a genre"></div>
+    <div class="genres-header">
+      <span class="genres-title" id="genres-title">Select a genre above</span>
+    </div>
+    <div class="album-grid" id="genre-grid-results" aria-label="Genre album results" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- DISCOVER -->
+<div class="page" id="page-discover" role="region" aria-label="Discover random albums">
   <div class="discover-inner">
     <div class="discover-heading">Discover</div>
     <p class="discover-desc">Pick a genre to get a random album from that world, or leave it blank and let us surprise you entirely.</p>
     <div class="genre-label">Genre — optional</div>
-    <div class="genre-grid" id="genre-grid"></div>
+    <div class="genre-grid" id="discover-genre-grid" role="group" aria-label="Select genre for discovery"></div>
     <div class="discover-actions">
       <button class="discover-go-btn" id="discover-go-btn" onclick="discoverRandom()">Random album →</button>
-      <button class="discover-clear-btn" onclick="clearGenre()">Clear</button>
+      <button class="discover-clear-btn" onclick="clearDiscoverGenre()">Clear</button>
     </div>
-    <div id="discover-result"></div>
+    <div id="discover-result" aria-live="polite"></div>
   </div>
 </div>
 
-<!-- ══ SEARCH ══ -->
-<div class="page" id="page-search">
-  <div class="search-inner">
-    <div class="search-row">
-      <input class="search-input" id="search-input" type="text" placeholder="Search for an album or artist…" autocomplete="off" />
-      <button class="search-btn" onclick="doSearch()">SEARCH</button>
+<!-- MY LIST -->
+<div class="page" id="page-list" role="region" aria-label="My saved list">
+  <div class="list-inner" id="my-list-content"></div>
+</div>
+
+<!-- SETTINGS -->
+<div class="page" id="page-settings" role="region" aria-label="Accessibility settings">
+  <div class="settings-inner">
+    <div class="settings-heading">Settings</div>
+    <p class="settings-desc">Accessibility options (universell utforming) to make Albumify easier to use for everyone.</p>
+
+    <div class="setting-group">
+      <div class="setting-group-title">Visual</div>
+
+      <div class="setting-row">
+        <label class="setting-label" for="toggle-hc">
+          High contrast
+          <small>Increases colour contrast for better readability</small>
+        </label>
+        <label class="toggle" aria-label="Toggle high contrast">
+          <input type="checkbox" id="toggle-hc" onchange="applySetting('hc', this.checked)" />
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+
+      <div class="setting-row">
+        <label class="setting-label" for="toggle-motion">
+          Reduce motion
+          <small>Turns off animations and transitions</small>
+        </label>
+        <label class="toggle" aria-label="Toggle reduce motion">
+          <input type="checkbox" id="toggle-motion" onchange="applySetting('reduce-motion', this.checked)" />
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+
+      <div class="setting-row">
+        <label class="setting-label" for="font-size-slider">
+          Text size
+          <small>Scale all text up or down</small>
+        </label>
+        <input type="range" id="font-size-slider" class="font-slider" min="0.85" max="1.5" step="0.05" value="1"
+          aria-label="Text size" oninput="applyFontSize(this.value)" />
+      </div>
+
+      <div class="setting-row">
+        <label class="setting-label" for="toggle-large">
+          Large text preset
+          <small>Quickly switch to 25% larger text</small>
+        </label>
+        <label class="toggle" aria-label="Toggle large text preset">
+          <input type="checkbox" id="toggle-large" onchange="applySetting('large-text', this.checked)" />
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
     </div>
-    <div id="search-results"></div>
+
+    <div class="setting-group">
+      <div class="setting-group-title">Keyboard &amp; Screen reader</div>
+      <div class="setting-row">
+        <div class="setting-label">
+          Keyboard navigation
+          <small>All buttons and cards are reachable with Tab. Press Enter or Space to activate. Press Escape to go back.</small>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-label">
+          Screen reader support
+          <small>Pages are labelled with ARIA landmarks. Status changes are announced via a live region.</small>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- ══ MY LIST ══ -->
-<div class="page" id="page-list">
-  <div class="list-inner">
-    <div id="my-list-content"></div>
-  </div>
-</div>
-
-<!-- ══ DETAIL ══ -->
-<div class="page" id="page-detail">
+<!-- DETAIL -->
+<div class="page" id="page-detail" role="region" aria-label="Album detail">
   <div class="detail-inner">
-    <button class="back-btn" id="back-btn">← back</button>
+    <button class="back-btn" id="back-btn" aria-label="Go back">← back</button>
     <div id="detail-content"></div>
   </div>
 </div>
 
+</main>
+
 <script>
-  let myList = JSON.parse(localStorage.getItem('albumify-list') || '[]');
-  let albumStore = {};
-  let selectedGenre = null;
-  let prevPage = 'home';
+const PAGES = ['home','aotd','genres','discover','list','settings','detail'];
+const GENRES = ['rock','indie','alternative','pop','hip hop','r&b','jazz','electronic','ambient','metal','punk','folk','classical','blues','reggae','soul','funk','country','latin','experimental'];
 
-  const GENRES = [
-    'rock','indie','alternative','pop','hip hop','r&b',
-    'jazz','electronic','ambient','metal','punk','folk',
-    'classical','blues','reggae','soul','funk','country',
-    'latin','experimental',
-  ];
+let myList = JSON.parse(localStorage.getItem('albumify-list') || '[]');
+let albumStore = {};
+let prevPage = 'home';
+let discoverSelectedGenre = null;
+let currentGenrePage = null;
 
-  // ── Init ─────────────────────────────────────────────────────────────────────
-  function init() {
-    updateBadge();
-    buildGenreGrid();
-    loadPopular();
-    document.getElementById('search-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') doSearch();
-    });
-  }
+// ─── Accessibility settings ───────────────────────────────────────────────────
+function applySetting(cls, on) {
+  document.body.classList.toggle(cls, on);
+  const prefs = JSON.parse(localStorage.getItem('albumify-prefs') || '{}');
+  prefs[cls] = on;
+  localStorage.setItem('albumify-prefs', JSON.stringify(prefs));
+  announce(on ? cls.replace('-', ' ') + ' enabled' : cls.replace('-', ' ') + ' disabled');
+}
 
-  // ── Navigation ───────────────────────────────────────────────────────────────
-  const PAGES = ['home','discover','search','list','detail'];
-  function showPage(page) {
-    PAGES.forEach(p => {
-      document.getElementById('page-' + p).classList.toggle('active', p === page);
-      const nav = document.getElementById('nav-' + p);
-      if (nav) nav.classList.toggle('active', p === page);
-    });
-    if (page === 'list') renderMyList();
-    if (page !== 'detail') prevPage = page;
-    window.scrollTo(0, 0);
-  }
+function applyFontSize(val) {
+  document.documentElement.style.setProperty('--font-scale', val);
+  document.body.style.fontSize = `calc(16px * ${val})`;
+  const prefs = JSON.parse(localStorage.getItem('albumify-prefs') || '{}');
+  prefs['font-size'] = val;
+  localStorage.setItem('albumify-prefs', JSON.stringify(prefs));
+}
 
-  // ── Popular grid ─────────────────────────────────────────────────────────────
-  async function loadPopular() {
-    const grid = document.getElementById('popular-grid');
-    try {
-      const res = await fetch('/api/new-releases');
-      if (!res.ok) throw new Error();
-      const albums = await res.json();
-      if (!albums.length) throw new Error();
-      albums.forEach(a => albumStore[a.id] = a);
-      grid.innerHTML = albums.map(albumCard).join('');
-    } catch {
-      grid.innerHTML = '<div class="status error" style="grid-column:1/-1">Could not load popular albums.</div>';
+function loadPrefs() {
+  const prefs = JSON.parse(localStorage.getItem('albumify-prefs') || '{}');
+  for (const [key, val] of Object.entries(prefs)) {
+    if (key === 'font-size') {
+      applyFontSize(val);
+      const sl = document.getElementById('font-size-slider');
+      if (sl) sl.value = val;
+    } else {
+      document.body.classList.toggle(key, !!val);
+      const toggle = document.getElementById('toggle-' + key.replace('reduce-motion','motion').replace('large-text','large').replace('hc','hc'));
+      if (toggle) toggle.checked = !!val;
     }
   }
+}
 
-  function albumCard(album) {
+// ─── Screen reader announcer ──────────────────────────────────────────────────
+function announce(msg) {
+  const el = document.getElementById('sr-live');
+  el.textContent = '';
+  setTimeout(() => { el.textContent = msg; }, 50);
+}
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+function showPage(page) {
+  PAGES.forEach(p => {
+    document.getElementById('page-' + p).classList.toggle('active', p === page);
+    const nav = document.getElementById('nav-' + p);
+    if (nav) {
+      nav.classList.toggle('active', p === page);
+      nav.setAttribute('aria-current', p === page ? 'page' : 'false');
+    }
+  });
+  if (page === 'list') renderMyList();
+  if (page === 'aotd') loadAotd();
+  if (page !== 'detail') prevPage = page;
+  window.scrollTo(0, 0);
+  // Move focus to main heading area for screen readers
+  document.getElementById('main').focus && document.getElementById('main').setAttribute('tabindex','-1');
+}
+
+// ─── API calls ────────────────────────────────────────────────────────────────
+async function api(path) {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error('API error');
+  return res.json();
+}
+
+// ─── Popular page ─────────────────────────────────────────────────────────────
+async function loadPopular() {
+  const grid = document.getElementById('popular-grid');
+  try {
+    const albums = await api('/api/new-releases');
+    if (!albums.length) throw new Error();
+    albums.forEach(a => albumStore[a.id] = a);
+    grid.innerHTML = albums.map(albumCard).join('');
+    announce('Popular albums loaded');
+  } catch {
+    grid.innerHTML = '<div class="status error" style="grid-column:1/-1">Could not load popular albums.</div>';
+  }
+}
+
+// ─── Album of the day ─────────────────────────────────────────────────────────
+let aotdLoaded = false;
+async function loadAotd() {
+  if (aotdLoaded) return;
+  const container = document.getElementById('aotd-content');
+  const dateEl = document.getElementById('aotd-date');
+  const today = new Date();
+  dateEl.textContent = today.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  try {
+    const album = await api('/api/album-of-the-day');
+    albumStore[album.id] = album;
     const saved = isInList(album.id);
     const art = album.image
-      ? `<img src="${esc(album.image)}" alt="" loading="lazy" />`
-      : `<div class="card-art-placeholder">♪</div>`;
-    return `
-      <div class="album-card" data-id="${album.id}">
-        <div class="card-art-wrap">
-          ${art}
-          <div class="card-overlay"></div>
-          <button class="card-save ${saved ? 'saved' : ''}" data-action="save" data-id="${album.id}">
-            ${saved ? 'saved' : '+ list'}
-          </button>
-        </div>
-        <div class="card-info">
-          <div class="card-name">${esc(album.name)}</div>
-          <div class="card-artist">${esc(album.artist)}</div>
-          <div class="card-year">${album.year}</div>
-        </div>
-      </div>
-    `;
-  }
-
-  // ── Genre grid ───────────────────────────────────────────────────────────────
-  function buildGenreGrid() {
-    document.getElementById('genre-grid').innerHTML = GENRES.map(g =>
-      `<button class="genre-btn" data-genre="${g}" onclick="selectGenre('${g}')">${g}</button>`
-    ).join('');
-  }
-
-  function selectGenre(genre) {
-    selectedGenre = selectedGenre === genre ? null : genre;
-    document.querySelectorAll('.genre-btn').forEach(b =>
-      b.classList.toggle('selected', b.dataset.genre === selectedGenre)
-    );
-  }
-
-  function clearGenre() {
-    selectedGenre = null;
-    document.querySelectorAll('.genre-btn').forEach(b => b.classList.remove('selected'));
-    document.getElementById('discover-result').innerHTML = '';
-  }
-
-  // ── Discover random ──────────────────────────────────────────────────────────
-  async function discoverRandom() {
-    const btn = document.getElementById('discover-go-btn');
-    const resultEl = document.getElementById('discover-result');
-    btn.disabled = true;
-    btn.textContent = 'Loading…';
-    resultEl.innerHTML = '<div class="status">Finding something…</div>';
-
-    try {
-      const url = selectedGenre
-        ? `/api/random-album?genre=${encodeURIComponent(selectedGenre)}`
-        : '/api/random-album';
-      const res = await fetch(url);
-      if (!res.ok) throw new Error();
-      const album = await res.json();
-      albumStore[album.id] = album;
-
-      const saved = isInList(album.id);
-      const art = album.image
-        ? `<img src="${esc(album.image)}" alt="" />`
-        : `<div class="d-placeholder">♪</div>`;
-      const genreTag = selectedGenre ? ` &nbsp;·&nbsp; <span>${selectedGenre}</span>` : '';
-
-      resultEl.innerHTML = `
-        <div class="discover-result-card" data-id="${album.id}">
-          ${art}
-          <div class="discover-result-info">
-            <div class="r-name">${esc(album.name)}</div>
-            <div class="r-sub">${esc(album.artist)} &nbsp;·&nbsp; <span>${album.year}</span>${genreTag} &nbsp;·&nbsp; ${album.totalTracks} tracks</div>
-            <div class="discover-result-actions">
-              <button class="action-btn ${saved ? 'saved' : ''}" data-action="save" data-id="${album.id}">
-                ${saved ? 'saved' : '+ list'}
-              </button>
-              <button class="action-btn" onclick="discoverRandom()">try another →</button>
-            </div>
-          </div>
-        </div>
-      `;
-    } catch {
-      resultEl.innerHTML = '<div class="status error">Couldn\'t find an album. Try again.</div>';
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Random album →';
-    }
-  }
-
-  // ── Search ───────────────────────────────────────────────────────────────────
-  async function doSearch() {
-    const q = document.getElementById('search-input').value.trim();
-    if (!q) return;
-    showPage('search');
-    const results = document.getElementById('search-results');
-    results.innerHTML = '<div class="status">Searching…</div>';
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-      if (!res.ok) throw new Error();
-      const albums = await res.json();
-      albums.forEach(a => albumStore[a.id] = a);
-      renderAlbumList(results, albums, `Results for "${q}"`);
-    } catch {
-      results.innerHTML = '<div class="status error">Search failed.</div>';
-    }
-  }
-
-  // ── Album list (compact rows) ─────────────────────────────────────────────────
-  function renderAlbumList(container, albums, label) {
-    if (!albums.length) { container.innerHTML = '<div class="status">No albums found.</div>'; return; }
+      ? `<img src="${esc(album.image)}" alt="Album cover for ${esc(album.name)}" />`
+      : `<div class="aotd-placeholder" aria-hidden="true">♪</div>`;
     container.innerHTML = `
-      <div class="section-header">
-        <span class="section-title">${label}</span>
-        <span class="section-count">${albums.length} albums</span>
-      </div>
-      <div class="album-list">
-        ${albums.map((a, i) => albumRow(a, i + 1)).join('')}
-      </div>
-    `;
-  }
-
-  function albumRow(album, index) {
-    const saved = isInList(album.id);
-    const thumb = album.image
-      ? `<img class="album-thumb" src="${esc(album.image)}" alt="" loading="lazy" />`
-      : `<div class="album-thumb-placeholder">♪</div>`;
-    return `
-      <div class="album-row" data-id="${album.id}">
-        <span class="album-index">${index}</span>
-        ${thumb}
-        <div class="album-info">
-          <div class="album-name">${esc(album.name)}</div>
-          <div class="album-sub">${esc(album.artist)} &nbsp;·&nbsp; <span>${album.year}</span> &nbsp;·&nbsp; ${album.totalTracks} tracks</div>
-        </div>
-        <div class="album-actions">
-          <button class="action-btn ${saved ? 'saved' : ''}" data-action="save" data-id="${album.id}">
-            ${saved ? 'saved' : '+ list'}
-          </button>
-        </div>
-      </div>
-    `;
-  }
-
-  // ── Click delegation ──────────────────────────────────────────────────────────
-  document.addEventListener('click', function(e) {
-    const saveBtn = e.target.closest('[data-action="save"]');
-    if (saveBtn) {
-      e.stopPropagation();
-      const id = saveBtn.dataset.id;
-      const album = albumStore[id] || myList.find(a => a.id === id);
-      if (album) toggleSave(album);
-      return;
-    }
-    const card = e.target.closest('.album-card');
-    if (card) { const a = albumStore[card.dataset.id]; if (a) openDetail(a); return; }
-    const row = e.target.closest('.album-row');
-    if (row) { const a = albumStore[row.dataset.id] || myList.find(x => x.id === row.dataset.id); if (a) openDetail(a); return; }
-    const dCard = e.target.closest('.discover-result-card');
-    if (dCard && !e.target.closest('button')) { const a = albumStore[dCard.dataset.id]; if (a) openDetail(a); }
-  });
-
-  // ── Detail page ───────────────────────────────────────────────────────────────
-  async function openDetail(album) {
-    document.getElementById('back-btn').onclick = () => showPage(prevPage);
-    showPage('detail');
-    const container = document.getElementById('detail-content');
-    const saved = isInList(album.id);
-    const thumb = album.image
-      ? `<img class="detail-art" src="${esc(album.image)}" alt="" />`
-      : `<div class="detail-art-placeholder">♪</div>`;
-
-    container.innerHTML = `
-      <div class="detail-header">
-        ${thumb}
-        <div class="detail-meta">
-          <div class="detail-name">${esc(album.name)}</div>
-          <div class="detail-artist">${esc(album.artist)}</div>
-          <div class="detail-info">${album.year} &nbsp;·&nbsp; ${album.totalTracks} tracks</div>
-          <button class="detail-save-btn ${saved ? 'saved' : ''}" id="detail-save-btn">
+      <div class="aotd-card" data-id="${album.id}" tabindex="0" role="button" aria-label="Open ${esc(album.name)} by ${esc(album.artist)}">
+        ${art}
+        <div>
+          <div class="aotd-name">${esc(album.name)}</div>
+          <div class="aotd-artist">${esc(album.artist)}</div>
+          <div class="aotd-meta">${album.year} &nbsp;·&nbsp; ${album.totalTracks} tracks</div>
+          <p class="aotd-desc">Today's pick from the global charts — a different album every day.</p>
+          <button class="action-btn ${saved ? 'saved' : ''}" data-action="save" data-id="${album.id}" style="margin-top:4px">
             ${saved ? 'saved' : '+ add to list'}
           </button>
         </div>
-      </div>
-      <div class="section-header"><span class="section-title">Tracklist</span></div>
-      <div id="tracklist"><div class="status">Loading tracks…</div></div>
-      <div class="similar-section">
-        <div class="section-header"><span class="section-title">Similar Albums</span></div>
-        <div id="similar-list"><div class="status">Loading…</div></div>
-      </div>
-    `;
+      </div>`;
+    aotdLoaded = true;
+    announce('Album of the day loaded: ' + album.name + ' by ' + album.artist);
+  } catch {
+    container.innerHTML = '<div class="status error">Could not load today\'s album.</div>';
+  }
+}
 
-    document.getElementById('detail-save-btn').addEventListener('click', () => {
-      toggleSave(album);
-      const btn = document.getElementById('detail-save-btn');
-      btn.textContent = isInList(album.id) ? 'saved' : '+ add to list';
-      btn.classList.toggle('saved', isInList(album.id));
-    });
+// ─── Genres page ──────────────────────────────────────────────────────────────
+function buildGenrePicker() {
+  document.getElementById('genre-picker').innerHTML = GENRES.map(g =>
+    `<button class="genre-pill" data-genre="${g}" onclick="loadGenre('${g}')" aria-pressed="false">${g}</button>`
+  ).join('');
+}
 
-    try {
-      const res = await fetch(`/api/album/${album.id}`);
-      if (!res.ok) throw new Error();
-      const detail = await res.json();
-      album.artistId = detail.artistId;
-      albumStore[album.id] = album;
-      if (detail.tags?.length) {
-        const tagHtml = `<div class="tag-list">${detail.tags.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>`;
-        document.getElementById("detail-save-btn").insertAdjacentHTML("afterend", tagHtml);
-      }
-      document.getElementById('tracklist').innerHTML = detail.tracks.map(t => `
-        <div class="track-row">
-          <span class="track-num">${t.track_number}</span>
-          <span class="track-name">${esc(t.name)}</span>
-          <span class="track-dur">${msToMin(t.duration_ms)}</span>
+async function loadGenre(genre) {
+  if (currentGenrePage === genre) return;
+  currentGenrePage = genre;
+
+  // Update pill states
+  document.querySelectorAll('.genre-pill').forEach(b => {
+    const active = b.dataset.genre === genre;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+
+  document.getElementById('genres-title').textContent = genre.charAt(0).toUpperCase() + genre.slice(1);
+  const grid = document.getElementById('genre-grid-results');
+  grid.innerHTML = Array(10).fill(`<div aria-hidden="true"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>`).join('');
+  announce('Loading ' + genre + ' albums');
+
+  try {
+    const albums = await api(`/api/genre-albums?genre=${encodeURIComponent(genre)}`);
+    if (!albums.length) throw new Error();
+    albums.forEach(a => albumStore[a.id] = a);
+    grid.innerHTML = albums.map(albumCard).join('');
+    announce(genre + ' albums loaded, ' + albums.length + ' results');
+  } catch {
+    grid.innerHTML = '<div class="status error" style="grid-column:1/-1">Could not load genre albums.</div>';
+  }
+}
+
+// ─── Discover ─────────────────────────────────────────────────────────────────
+function buildDiscoverGrid() {
+  document.getElementById('discover-genre-grid').innerHTML = GENRES.map(g =>
+    `<button class="genre-btn" data-genre="${g}" onclick="selectDiscoverGenre('${g}')">${g}</button>`
+  ).join('');
+}
+
+function selectDiscoverGenre(genre) {
+  discoverSelectedGenre = discoverSelectedGenre === genre ? null : genre;
+  document.querySelectorAll('#discover-genre-grid .genre-btn').forEach(b =>
+    b.classList.toggle('selected', b.dataset.genre === discoverSelectedGenre)
+  );
+}
+
+function clearDiscoverGenre() {
+  discoverSelectedGenre = null;
+  document.querySelectorAll('#discover-genre-grid .genre-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('discover-result').innerHTML = '';
+}
+
+async function discoverRandom() {
+  const btn = document.getElementById('discover-go-btn');
+  const resultEl = document.getElementById('discover-result');
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  resultEl.innerHTML = '<div class="status">Finding something…</div>';
+  announce('Finding a random album');
+  try {
+    const url = discoverSelectedGenre
+      ? `/api/random-album?genre=${encodeURIComponent(discoverSelectedGenre)}`
+      : '/api/random-album';
+    const album = await api(url);
+    albumStore[album.id] = album;
+    const saved = isInList(album.id);
+    const art = album.image ? `<img src="${esc(album.image)}" alt="Album cover for ${esc(album.name)}" />` : `<div class="d-placeholder" aria-hidden="true">♪</div>`;
+    const genreTag = discoverSelectedGenre ? ` &nbsp;·&nbsp; <span>${discoverSelectedGenre}</span>` : '';
+    resultEl.innerHTML = `
+      <div class="discover-result-card" data-id="${album.id}" tabindex="0" role="button" aria-label="Open ${esc(album.name)} by ${esc(album.artist)}">
+        ${art}
+        <div class="discover-result-info">
+          <div class="r-name">${esc(album.name)}</div>
+          <div class="r-sub">${esc(album.artist)} &nbsp;·&nbsp; <span>${album.year}</span>${genreTag} &nbsp;·&nbsp; ${album.totalTracks} tracks</div>
+          <div class="discover-result-actions">
+            <button class="action-btn ${saved ? 'saved' : ''}" data-action="save" data-id="${album.id}">${saved ? 'saved' : '+ list'}</button>
+            <button class="action-btn" onclick="discoverRandom()">try another →</button>
+          </div>
         </div>
-      `).join('');
-    } catch {
-      document.getElementById('tracklist').innerHTML = '<div class="status error">Could not load tracks.</div>';
-    }
+      </div>`;
+    announce('Random album found: ' + album.name + ' by ' + album.artist);
+  } catch {
+    resultEl.innerHTML = '<div class="status error">Couldn\'t find an album. Try again.</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Random album →';
+  }
+}
 
-    const similarList = document.getElementById('similar-list');
-    try {
-      const res = await fetch(`/api/similar/${album.id}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      data.forEach(a => albumStore[a.id] = a);
-      similarList.innerHTML = data.length
-        ? `<div class="album-list">${data.map((a, i) => albumRow(a, i + 1)).join('')}</div>`
-        : '<div class="status">No similar albums found.</div>';
-    } catch {
-      similarList.innerHTML = '<div class="status error">Could not load similar albums.</div>';
-    }
+// ─── Search ───────────────────────────────────────────────────────────────────
+async function doSearch() {
+  const q = document.getElementById('header-search-input').value.trim();
+  if (!q) return;
+  showPage('search') || (document.getElementById('page-search') && (document.getElementById('page-search').classList.add('active')));
+
+  // Make search page visible even though it's not in PAGES nav
+  PAGES.forEach(p => document.getElementById('page-' + p)?.classList.remove('active'));
+  document.getElementById('nav-home')?.classList.remove('active');
+
+  // Just reuse the detail flow — show results on current page by injecting into popular grid
+  // Actually, let's show search results on home replacing the grid temporarily
+  showPage('home');
+  const grid = document.getElementById('popular-grid');
+  grid.style.display = 'block';
+  grid.innerHTML = '<div class="status" style="grid-column:1/-1">Searching…</div>';
+  document.querySelector('.home-title').textContent = `Results for "${q}"`;
+  document.querySelector('.home-source').textContent = '';
+  announce('Searching for ' + q);
+  try {
+    const albums = await api(`/api/search?q=${encodeURIComponent(q)}`);
+    albums.forEach(a => albumStore[a.id] = a);
+    if (!albums.length) { grid.innerHTML = '<div class="status" style="grid-column:1/-1">No albums found.</div>'; return; }
+    grid.style.display = 'grid';
+    grid.innerHTML = albums.map(albumCard).join('');
+    announce(albums.length + ' results for ' + q);
+  } catch {
+    grid.innerHTML = '<div class="status error" style="grid-column:1/-1">Search failed.</div>';
+  }
+}
+
+// ─── Card / row renderers ─────────────────────────────────────────────────────
+function albumCard(album) {
+  const saved = isInList(album.id);
+  const art = album.image
+    ? `<img src="${esc(album.image)}" alt="Album cover for ${esc(album.name)} by ${esc(album.artist)}" loading="lazy" />`
+    : `<div class="card-art-placeholder" aria-hidden="true">♪</div>`;
+  return `
+    <div class="album-card" data-id="${album.id}" tabindex="0" role="button" aria-label="${esc(album.name)} by ${esc(album.artist)}, ${album.year}">
+      <div class="card-art-wrap">
+        ${art}
+        <div class="card-overlay" aria-hidden="true"></div>
+        <button class="card-save ${saved ? 'saved' : ''}" data-action="save" data-id="${album.id}" aria-label="${saved ? 'Remove from list' : 'Add to list'}: ${esc(album.name)}">
+          ${saved ? 'saved' : '+ list'}
+        </button>
+      </div>
+      <div class="card-info">
+        <div class="card-name">${esc(album.name)}</div>
+        <div class="card-artist">${esc(album.artist)}</div>
+        <div class="card-year">${album.year}</div>
+      </div>
+    </div>`;
+}
+
+function albumRow(album, index) {
+  const saved = isInList(album.id);
+  const thumb = album.image
+    ? `<img class="album-thumb" src="${esc(album.image)}" alt="" loading="lazy" />`
+    : `<div class="album-thumb-placeholder" aria-hidden="true">♪</div>`;
+  return `
+    <div class="album-row" data-id="${album.id}" tabindex="0" role="button" aria-label="${esc(album.name)} by ${esc(album.artist)}, ${album.year}">
+      <span class="album-index" aria-hidden="true">${index}</span>
+      ${thumb}
+      <div class="album-info">
+        <div class="album-name">${esc(album.name)}</div>
+        <div class="album-sub">${esc(album.artist)} &nbsp;·&nbsp; <span>${album.year}</span> &nbsp;·&nbsp; ${album.totalTracks} tracks</div>
+      </div>
+      <div class="album-actions">
+        <button class="action-btn ${saved ? 'saved' : ''}" data-action="save" data-id="${album.id}" aria-label="${saved ? 'Remove from list' : 'Add to list'}: ${esc(album.name)}">
+          ${saved ? 'saved' : '+ list'}
+        </button>
+      </div>
+    </div>`;
+}
+
+// ─── Click + keyboard delegation ─────────────────────────────────────────────
+document.addEventListener('click', function(e) {
+  const saveBtn = e.target.closest('[data-action="save"]');
+  if (saveBtn) {
+    e.stopPropagation();
+    const id = saveBtn.dataset.id;
+    const album = albumStore[id] || myList.find(a => a.id === id);
+    if (album) toggleSave(album);
+    return;
+  }
+  const card = e.target.closest('.album-card, .aotd-card, .discover-result-card');
+  if (card && !e.target.closest('button')) { const a = albumStore[card.dataset.id]; if (a) openDetail(a); return; }
+  const row = e.target.closest('.album-row');
+  if (row && !e.target.closest('button')) { const a = albumStore[row.dataset.id] || myList.find(x => x.id === row.dataset.id); if (a) openDetail(a); }
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const detailActive = document.getElementById('page-detail').classList.contains('active');
+    if (detailActive) showPage(prevPage);
+  }
+  if (e.key === 'Enter' || e.key === ' ') {
+    const card = e.target.closest('.album-card, .aotd-card, .discover-result-card');
+    if (card && e.target === card) { e.preventDefault(); const a = albumStore[card.dataset.id]; if (a) openDetail(a); }
+    const row = e.target.closest('.album-row');
+    if (row && e.target === row) { e.preventDefault(); const a = albumStore[row.dataset.id] || myList.find(x => x.id === row.dataset.id); if (a) openDetail(a); }
+  }
+});
+
+// ─── Detail page ──────────────────────────────────────────────────────────────
+async function openDetail(album) {
+  document.getElementById('back-btn').onclick = () => showPage(prevPage);
+  showPage('detail');
+  const container = document.getElementById('detail-content');
+  const saved = isInList(album.id);
+  const thumb = album.image
+    ? `<img class="detail-art" src="${esc(album.image)}" alt="Album cover for ${esc(album.name)}" />`
+    : `<div class="detail-art-placeholder" aria-hidden="true">♪</div>`;
+
+  container.innerHTML = `
+    <div class="detail-header">
+      ${thumb}
+      <div class="detail-meta">
+        <div class="detail-name">${esc(album.name)}</div>
+        <div class="detail-artist">${esc(album.artist)}</div>
+        <div class="detail-info">${album.year} &nbsp;·&nbsp; ${album.totalTracks} tracks</div>
+        <button class="detail-save-btn ${saved ? 'saved' : ''}" id="detail-save-btn" aria-label="${saved ? 'Remove from list' : 'Add to list'}">
+          ${saved ? 'saved' : '+ add to list'}
+        </button>
+        <div id="detail-tags"></div>
+      </div>
+    </div>
+    <div class="section-header"><span class="section-title">Tracklist</span></div>
+    <div id="tracklist" aria-label="Tracklist"><div class="status">Loading tracks…</div></div>
+    <div class="similar-section">
+      <div class="section-header"><span class="section-title">Similar Albums</span></div>
+      <div id="similar-list" aria-label="Similar albums" aria-live="polite"><div class="status">Loading…</div></div>
+    </div>`;
+
+  document.getElementById('detail-save-btn').addEventListener('click', () => {
+    toggleSave(album);
+    const btn = document.getElementById('detail-save-btn');
+    const inList = isInList(album.id);
+    btn.textContent = inList ? 'saved' : '+ add to list';
+    btn.classList.toggle('saved', inList);
+    btn.setAttribute('aria-label', inList ? 'Remove from list' : 'Add to list');
+  });
+
+  announce('Opened ' + album.name + ' by ' + album.artist);
+
+  // Tags + tracklist in parallel
+  const detail = await api(`/api/album/${album.id}`).catch(() => null);
+
+  if (detail?.tags?.length) {
+    document.getElementById('detail-tags').innerHTML =
+      `<div class="tag-list" aria-label="Genre tags">${detail.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>`;
   }
 
-  // ── Save / list ───────────────────────────────────────────────────────────────
-  function toggleSave(album) {
-    if (isInList(album.id)) {
-      myList = myList.filter(a => a.id !== album.id);
-    } else {
-      myList.push(album);
-    }
-    saveList();
-    document.querySelectorAll(`[data-action="save"][data-id="${album.id}"]`).forEach(btn => {
-      const s = isInList(album.id);
-      btn.textContent = s ? 'saved' : '+ list';
-      btn.classList.toggle('saved', s);
-    });
+  if (detail?.tracks?.length) {
+    document.getElementById('tracklist').innerHTML = detail.tracks.map(t => `
+      <div class="track-row">
+        <span class="track-num" aria-hidden="true">${t.track_number}</span>
+        <span class="track-name">${esc(t.name)}</span>
+        <span class="track-dur" aria-label="${msToMin(t.duration_ms)}">${msToMin(t.duration_ms)}</span>
+      </div>`).join('');
+  } else {
+    document.getElementById('tracklist').innerHTML = '<div class="status error">Could not load tracks.</div>';
   }
 
-  function renderMyList() {
-    const container = document.getElementById('my-list-content');
-    myList.forEach(a => albumStore[a.id] = a);
-    if (!myList.length) {
-      container.innerHTML = '<div class="empty">Your list is empty. Search for albums and save them here.</div>';
-      return;
-    }
-    renderAlbumList(container, myList, 'My List');
-  }
+  loadSimilar(album);
+}
 
-  function isInList(id) { return myList.some(a => a.id === id); }
-  function saveList() { localStorage.setItem('albumify-list', JSON.stringify(myList)); updateBadge(); }
-  function updateBadge() {
-    document.getElementById('list-badge').textContent = myList.length ? `(${myList.length})` : '';
+async function loadSimilar(album) {
+  const similarList = document.getElementById('similar-list');
+  try {
+    const data = await api(`/api/similar/${album.id}`);
+    data.forEach(a => albumStore[a.id] = a);
+    similarList.innerHTML = data.length
+      ? `<div class="album-list">${data.map((a, i) => albumRow(a, i + 1)).join('')}</div>`
+      : '<div class="status">No similar albums found.</div>';
+    if (data.length) announce(data.length + ' similar albums loaded');
+  } catch {
+    similarList.innerHTML = '<div class="status error">Could not load similar albums.</div>';
   }
-  function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-  function msToMin(ms) { const s = Math.floor(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+}
 
-  init();
+// ─── Save / list ──────────────────────────────────────────────────────────────
+function toggleSave(album) {
+  const wasIn = isInList(album.id);
+  myList = wasIn ? myList.filter(a => a.id !== album.id) : [...myList, album];
+  saveList();
+  document.querySelectorAll(`[data-action="save"][data-id="${album.id}"]`).forEach(btn => {
+    const inList = isInList(album.id);
+    btn.textContent = inList ? 'saved' : '+ list';
+    btn.classList.toggle('saved', inList);
+    btn.setAttribute('aria-label', (inList ? 'Remove from list' : 'Add to list') + ': ' + album.name);
+  });
+  announce(wasIn ? album.name + ' removed from list' : album.name + ' added to list');
+}
+
+function renderMyList() {
+  const container = document.getElementById('my-list-content');
+  myList.forEach(a => albumStore[a.id] = a);
+  if (!myList.length) {
+    container.innerHTML = '<div class="empty">Your list is empty. Search for albums and save them here.</div>';
+    return;
+  }
+  container.innerHTML = `
+    <div class="section-header">
+      <span class="section-title">My List</span>
+      <span class="section-count">${myList.length} albums</span>
+    </div>
+    <div class="album-list">${myList.map((a, i) => albumRow(a, i + 1)).join('')}</div>`;
+}
+
+function isInList(id) { return myList.some(a => a.id === id); }
+function saveList() { localStorage.setItem('albumify-list', JSON.stringify(myList)); updateBadge(); }
+function updateBadge() {
+  const badge = document.getElementById('list-badge');
+  badge.textContent = myList.length ? `(${myList.length})` : '';
+  badge.setAttribute('aria-label', myList.length ? myList.length + ' saved albums' : '');
+}
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function msToMin(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+function init() {
+  loadPrefs();
+  updateBadge();
+  buildGenrePicker();
+  buildDiscoverGrid();
+  loadPopular();
+  document.getElementById('header-search-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doSearch();
+  });
+}
+
+init();
 </script>
 </body>
 </html>
