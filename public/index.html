@@ -17,17 +17,23 @@
       --muted:     #555555;
       --text:      #e0e0e0;
       --text-dim:  #888888;
-      --font-scale: 1;
       --radius: 2px;
     }
+    /* Light theme */
+    body.light {
+      --bg: #f5f5f5; --surface: #ffffff; --border: #dddddd;
+      --text: #111111; --text-dim: #444444; --muted: #999999;
+      --green: #1aa34a; --green-dim: #1aa34a;
+    }
+    body.light header { background: rgba(245,245,245,0.96); }
+    body.light .card-overlay { background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 60%); }
     /* High contrast mode */
     body.hc {
-      --bg: #000000; --surface: #0d0d0d; --border: #444444;
-      --text: #ffffff; --text-dim: #cccccc; --muted: #888888;
-      --green: #00ff66; --green-dim: #00aa44;
+      --bg: #000000; --surface: #0d0d0d; --border: #555555;
+      --text: #ffffff; --text-dim: #dddddd; --muted: #999999;
+      --green: #00ff66; --green-dim: #00cc44;
     }
-    /* Large text mode — scales all rem-based sizes */
-    body.large-text { --font-scale: 1.25; font-size: calc(16px * var(--font-scale)); }
+    body.hc header { background: rgba(0,0,0,0.98); }
     /* Reduced motion */
     body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after {
       animation-duration: 0.001ms !important;
@@ -333,10 +339,22 @@
 <div class="page" id="page-settings" role="region" aria-label="Accessibility settings">
   <div class="settings-inner">
     <div class="settings-heading">Settings</div>
-    <p class="settings-desc">Accessibility options (universell utforming) to make Albumify easier to use for everyone.</p>
+    <p class="settings-desc">Accessibility options to make Albumify easier to use for everyone.</p>
 
     <div class="setting-group">
-      <div class="setting-group-title">Visual</div>
+      <div class="setting-group-title">Theme</div>
+
+      <div class="setting-row">
+        <label class="setting-label" for="toggle-light">
+          Light mode
+          <small>Switch to a white background with dark text</small>
+        </label>
+        <label class="toggle" aria-label="Toggle light mode">
+          <input type="checkbox" id="toggle-light" onchange="applySetting('light', this.checked)" />
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
 
       <div class="setting-row">
         <label class="setting-label" for="toggle-hc">
@@ -349,6 +367,10 @@
           <span class="toggle-thumb"></span>
         </label>
       </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="setting-group-title">Text &amp; Motion</div>
 
       <div class="setting-row">
         <label class="setting-label" for="toggle-motion">
@@ -363,24 +385,12 @@
       </div>
 
       <div class="setting-row">
-        <label class="setting-label" for="font-size-slider">
+        <div class="setting-label" id="font-size-label">
           Text size
-          <small>Scale all text up or down</small>
-        </label>
-        <input type="range" id="font-size-slider" class="font-slider" min="0.85" max="1.5" step="0.05" value="1"
-          aria-label="Text size" oninput="applyFontSize(this.value)" />
-      </div>
-
-      <div class="setting-row">
-        <label class="setting-label" for="toggle-large">
-          Large text preset
-          <small>Quickly switch to 25% larger text</small>
-        </label>
-        <label class="toggle" aria-label="Toggle large text preset">
-          <input type="checkbox" id="toggle-large" onchange="applySetting('large-text', this.checked)" />
-          <span class="toggle-track"></span>
-          <span class="toggle-thumb"></span>
-        </label>
+          <small>Scale all text up or down (<span id="font-pct">100%</span>)</small>
+        </div>
+        <input type="range" id="font-size-slider" class="font-slider" min="85" max="150" step="5" value="100"
+          aria-label="Text size" aria-labelledby="font-size-label" oninput="applyFontSize(this.value)" />
       </div>
     </div>
 
@@ -424,32 +434,55 @@ let currentGenrePage = null;
 
 // ─── Accessibility settings ───────────────────────────────────────────────────
 function applySetting(cls, on) {
+  // light and hc are mutually exclusive
+  if (cls === 'light' && on) document.body.classList.remove('hc');
+  if (cls === 'hc' && on) document.body.classList.remove('light');
   document.body.classList.toggle(cls, on);
   const prefs = JSON.parse(localStorage.getItem('albumify-prefs') || '{}');
   prefs[cls] = on;
+  if (cls === 'light' && on) { prefs['hc'] = false; const hcEl = document.getElementById('toggle-hc'); if (hcEl) hcEl.checked = false; }
+  if (cls === 'hc' && on)    { prefs['light'] = false; const ltEl = document.getElementById('toggle-light'); if (ltEl) ltEl.checked = false; }
   localStorage.setItem('albumify-prefs', JSON.stringify(prefs));
-  announce(on ? cls.replace('-', ' ') + ' enabled' : cls.replace('-', ' ') + ' disabled');
+  announce(on ? cls.replace(/-/g, ' ') + ' enabled' : cls.replace(/-/g, ' ') + ' disabled');
 }
 
+// font size: value is integer 85–150 (percent)
 function applyFontSize(val) {
-  document.documentElement.style.setProperty('--font-scale', val);
-  document.body.style.fontSize = `calc(16px * ${val})`;
+  const pct = parseInt(val);
+  // Guard: if the value is clearly wrong (old decimal format like 1 or 0.85), reset to 100
+  if (isNaN(pct) || pct < 50 || pct > 200) {
+    document.documentElement.style.fontSize = '';
+    return;
+  }
+  document.documentElement.style.fontSize = pct + '%';
+  const label = document.getElementById('font-pct');
+  if (label) label.textContent = pct + '%';
   const prefs = JSON.parse(localStorage.getItem('albumify-prefs') || '{}');
-  prefs['font-size'] = val;
+  prefs['font-size'] = pct;
   localStorage.setItem('albumify-prefs', JSON.stringify(prefs));
 }
 
 function loadPrefs() {
   const prefs = JSON.parse(localStorage.getItem('albumify-prefs') || '{}');
+  // Clear any old-format font-size values (old code stored decimals like 1 or 0.85)
+  if (prefs['font-size'] !== undefined) {
+    const fs = parseFloat(prefs['font-size']);
+    if (isNaN(fs) || fs < 50) {
+      delete prefs['font-size'];
+      localStorage.setItem('albumify-prefs', JSON.stringify(prefs));
+      document.documentElement.style.fontSize = '';
+    }
+  }
   for (const [key, val] of Object.entries(prefs)) {
     if (key === 'font-size') {
       applyFontSize(val);
       const sl = document.getElementById('font-size-slider');
       if (sl) sl.value = val;
-    } else {
-      document.body.classList.toggle(key, !!val);
-      const toggle = document.getElementById('toggle-' + key.replace('reduce-motion','motion').replace('large-text','large').replace('hc','hc'));
-      if (toggle) toggle.checked = !!val;
+    } else if (typeof val === 'boolean' && val) {
+      document.body.classList.add(key);
+      const idMap = { 'hc': 'toggle-hc', 'light': 'toggle-light', 'reduce-motion': 'toggle-motion' };
+      const el = document.getElementById(idMap[key]);
+      if (el) el.checked = true;
     }
   }
 }
