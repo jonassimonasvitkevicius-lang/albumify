@@ -127,6 +127,18 @@
     .aotd-desc { font-size: 0.82rem; color: var(--text-dim); line-height: 1.7; margin-bottom: 20px; }
     @media (max-width: 620px) { .aotd-card { grid-template-columns: 1fr; } }
 
+    .era-picker { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 32px; }
+    .era-btn {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text-dim); font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.9rem; font-weight: 500; letter-spacing: 0.08em;
+      padding: 12px 22px; cursor: pointer; border-radius: var(--radius);
+      transition: all 0.15s;
+    }
+    .era-btn:hover { border-color: #444; color: var(--text); }
+    .era-btn.active { border-color: var(--green); color: var(--green); background: rgba(29,185,84,0.08); }
+    .era-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
     /* ── GENRES PAGE ── */
     .genres-inner { max-width: 1400px; margin: 0 auto; padding: 36px 28px 80px; }
     .genre-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 32px; }
@@ -225,7 +237,8 @@
     .detail-save-btn.saved { border-color: var(--green-dim); color: var(--green); background: rgba(29,185,84,0.06); }
     .detail-save-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
     .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
-    .tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--text-dim); border: 1px solid var(--border); padding: 3px 9px; border-radius: var(--radius); }
+    .tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--text-dim); border: 1px solid var(--border); padding: 3px 9px; border-radius: var(--radius); cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+    .tag:hover { color: var(--green); border-color: var(--green-dim); }
     .track-row { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
     .track-row:last-child { border-bottom: none; }
     .track-num { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; color: var(--muted); text-align: right; }
@@ -264,6 +277,7 @@
       <button id="nav-home"     onclick="showPage('home')"    class="active" aria-current="page">popular</button>
       <button id="nav-aotd"    onclick="showPage('aotd')"              >album of the day</button>
       <button id="nav-genres"  onclick="showPage('genres')"            >genres</button>
+      <button id="nav-eras"    onclick="showPage('eras')"              >eras</button>
       <button id="nav-discover" onclick="showPage('discover')"         >discover</button>
       <button id="nav-list"    onclick="showPage('list')"               >my list <span id="list-badge" aria-live="polite"></span></button>
       <button id="nav-settings" onclick="showPage('settings')"         >settings</button>
@@ -312,6 +326,17 @@
       <span class="genres-title" id="genres-title">Select a genre above</span>
     </div>
     <div class="album-grid" id="genre-grid-results" aria-label="Genre album results" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- ERAS -->
+<div class="page" id="page-eras" role="region" aria-label="Browse by era">
+  <div class="genres-inner">
+    <div class="era-picker" id="era-picker" role="group" aria-label="Select a decade"></div>
+    <div class="genres-header">
+      <span class="genres-title" id="eras-title">Select a decade above</span>
+    </div>
+    <div class="album-grid" id="era-grid-results" aria-label="Era album results" aria-live="polite"></div>
   </div>
 </div>
 
@@ -423,7 +448,7 @@
 </main>
 
 <script>
-const PAGES = ['home','aotd','genres','discover','list','settings','detail'];
+const PAGES = ['home','aotd','genres','eras','discover','list','settings','detail'];
 const GENRES = ['rock','indie','alternative','pop','hip hop','r&b','jazz','electronic','ambient','metal','punk','folk','classical','blues','reggae','soul','funk','country','latin','experimental'];
 
 let myList = JSON.parse(localStorage.getItem('albumify-list') || '[]');
@@ -568,7 +593,56 @@ async function loadAotd() {
   }
 }
 
-// ─── Genres page ──────────────────────────────────────────────────────────────
+function browseTag(tag) {
+  showPage('genres');
+  loadGenre(tag);
+}
+
+// ─── Eras page ────────────────────────────────────────────────────────────────
+const ERAS = [
+  { label: '1950s', tag: '50s' },
+  { label: '1960s', tag: '60s' },
+  { label: '1970s', tag: '70s' },
+  { label: '1980s', tag: '80s' },
+  { label: '1990s', tag: '90s' },
+  { label: '2000s', tag: '00s' },
+  { label: '2010s', tag: '10s' },
+  { label: '2020s', tag: '20s' },
+];
+
+let currentEra = null;
+
+function buildEraPicker() {
+  document.getElementById('era-picker').innerHTML = ERAS.map(e =>
+    `<button class="era-btn" data-tag="${e.tag}" onclick="loadEra('${e.tag}','${e.label}')" aria-pressed="false">${e.label}</button>`
+  ).join('');
+}
+
+async function loadEra(tag, label) {
+  if (currentEra === tag) return;
+  currentEra = tag;
+
+  document.querySelectorAll('.era-btn').forEach(b => {
+    const active = b.dataset.tag === tag;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+
+  document.getElementById('eras-title').textContent = label;
+  const grid = document.getElementById('era-grid-results');
+  grid.innerHTML = Array(10).fill(`<div aria-hidden="true"><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line-sm"></div></div>`).join('');
+  announce('Loading ' + label + ' albums');
+
+  try {
+    const albums = await api(`/api/era-albums?decade=${encodeURIComponent(tag)}`);
+    if (!albums.length) throw new Error();
+    albums.forEach(a => albumStore[a.id] = a);
+    grid.innerHTML = albums.map(albumCard).join('');
+    announce(label + ' albums loaded, ' + albums.length + ' results');
+  } catch {
+    grid.innerHTML = '<div class="status error" style="grid-column:1/-1">Could not load albums for this era.</div>';
+  }
+}
 function buildGenrePicker() {
   document.getElementById('genre-picker').innerHTML = GENRES.map(g =>
     `<button class="genre-pill" data-genre="${g}" onclick="loadGenre('${g}')" aria-pressed="false">${g}</button>`
@@ -576,10 +650,10 @@ function buildGenrePicker() {
 }
 
 async function loadGenre(genre) {
-  if (currentGenrePage === genre) return;
+  if (currentGenrePage === genre) { showPage('genres'); return; }
   currentGenrePage = genre;
 
-  // Update pill states
+  // Highlight the matching pill if it exists, otherwise show the tag name in the title
   document.querySelectorAll('.genre-pill').forEach(b => {
     const active = b.dataset.genre === genre;
     b.classList.toggle('active', active);
@@ -809,7 +883,7 @@ async function openDetail(album) {
 
   if (detail?.tags?.length) {
     document.getElementById('detail-tags').innerHTML =
-      `<div class="tag-list" aria-label="Genre tags">${detail.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>`;
+      `<div class="tag-list" aria-label="Genre tags">${detail.tags.map(t => `<span class="tag" role="button" tabindex="0" aria-label="Browse ${esc(t)} albums" onclick="browseTag('${esc(t)}')" onkeydown="if(event.key==='Enter')browseTag('${esc(t)}')">${esc(t)}</span>`).join('')}</div>`;
   }
 
   if (detail?.tracks?.length) {
@@ -884,6 +958,7 @@ function init() {
   loadPrefs();
   updateBadge();
   buildGenrePicker();
+  buildEraPicker();
   buildDiscoverGrid();
   loadPopular();
   document.getElementById('header-search-input').addEventListener('keydown', e => {

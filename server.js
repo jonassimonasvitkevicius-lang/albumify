@@ -63,13 +63,35 @@ async function lfm(params) {
     api_key: LASTFM_KEY,
     format: "json",
   });
+
   try {
     const res = await fetch(url);
+
+    // Handle Last.fm rate limiting
+    if (res.status === 429) {
+      console.log("Last.fm rate limited");
+      return null;
+    }
+
     const text = await res.text();
+
+    // Sometimes Last.fm returns plain text instead of JSON
+    if (!text.startsWith("{")) {
+      console.log("Invalid Last.fm response:", text);
+      return null;
+    }
+
     const data = JSON.parse(text);
-    if (data.error) return null;
+
+    if (data.error) {
+      console.log("Last.fm API error:", data.message);
+      return null;
+    }
+
     return data;
-  } catch {
+
+  } catch (err) {
+    console.log("Last.fm fetch failed:", err.message);
     return null;
   }
 }
@@ -281,7 +303,7 @@ app.get("/api/similar/:albumId", async (req, res) => {
         getLastfmTopAlbums(name, 5),
       ]);
       return { name, lastfmScore: score, artistTags, topAlbumNames };
-    }, 4, 250);
+    }, 2, 500);
 
     // ── 4. Score each candidate artist ────────────────────────────────────────
     // We combine three signals:
