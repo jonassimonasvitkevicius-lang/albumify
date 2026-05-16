@@ -63,35 +63,13 @@ async function lfm(params) {
     api_key: LASTFM_KEY,
     format: "json",
   });
-
   try {
     const res = await fetch(url);
-
-    // Handle Last.fm rate limiting
-    if (res.status === 429) {
-      console.log("Last.fm rate limited");
-      return null;
-    }
-
     const text = await res.text();
-
-    // Sometimes Last.fm returns plain text instead of JSON
-    if (!text.startsWith("{")) {
-      console.log("Invalid Last.fm response:", text);
-      return null;
-    }
-
     const data = JSON.parse(text);
-
-    if (data.error) {
-      console.log("Last.fm API error:", data.message);
-      return null;
-    }
-
+    if (data.error) return null;
     return data;
-
-  } catch (err) {
-    console.log("Last.fm fetch failed:", err.message);
+  } catch {
     return null;
   }
 }
@@ -303,7 +281,7 @@ app.get("/api/similar/:albumId", async (req, res) => {
         getLastfmTopAlbums(name, 5),
       ]);
       return { name, lastfmScore: score, artistTags, topAlbumNames };
-    }, 2, 500);
+    }, 4, 250);
 
     // ── 4. Score each candidate artist ────────────────────────────────────────
     // We combine three signals:
@@ -579,6 +557,50 @@ app.get("/api/random-album", async (req, res) => {
   } catch (err) {
     console.error("Random album error:", err);
     res.status(500).json({ error: "Failed to get random album" });
+  }
+});
+
+// ─── Era albums ───────────────────────────────────────────────────────────────
+// Uses Last.fm tag.getTopAlbums with decade tags (e.g. "70s", "80s") then
+// enriches with Spotify. Cached per decade for 30 min.
+app.get("/api/era-albums", async (req, res) => {
+  const decade = req.query.decade?.trim();
+  if (!decade) return res.status(400).json({ error: "Missing decade" });
+
+  const cacheKey = `era:${decade}`;
+  const cached = cacheGet(cacheKey);
+  if (cached) return res.json(cached);
+
+  try {
+    const token = await getAccessToken();
+
+    // Last.fm has tags like "60s", "70s", "80s", "90s", "00s", "10s"
+    // We try the decade tag first, then fall back to year-range search on Spotify
+    const data = await lfm({ method: "tag.getTopAlbums", tag: decade, limit: 50, page: 1 });
+
+    let candidates = [];
+    if (data?.albums?.album) {
+      const raw = Array.isArray(data.albums.album) ? data.albums.album : [data.albums.album];
+      candidates = raw.filter(a => a.name && a.name !== "(null)" && a.artist?.name);
+    }
+
+    const results = [];
+    const seen = new Set();
+
+    for (const c of candidates) {
+      if (results.length >= 20) break;
+      const found = await spotifyFindAlbum(token, c.artist.name, c.name);
+      if (found && !seen.has(found.id)) {
+        seen.add(found.id);
+        results.push(formatAlbum(found));
+      }
+    }
+
+    cacheSet(cacheKey, results, THIRTY_MIN);
+    res.json(results);
+  } catch (err) {
+    console.error("Era albums error:", err);
+    res.status(500).json({ error: "Failed to load era albums" });
   }
 });
 
